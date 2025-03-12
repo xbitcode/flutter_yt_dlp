@@ -1,0 +1,83 @@
+group = "com.example.flutter_yt_dlp"
+version = "1.0-SNAPSHOT"
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://chaquo.com/maven" }
+    }
+
+    dependencies {
+        classpath("com.android.tools.build:gradle:7.3.0")
+        classpath "com.chaquo.python:gradle:15.0.1"
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
+
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://chaquo.com/maven" }
+    }
+}
+
+apply plugin: "com.android.library"
+apply plugin: 'com.chaquo.python'
+apply plugin: "kotlin-android"
+
+android {
+    compileSdk = 34
+    namespace = "com.example.flutter_yt_dlp"
+    
+    sourceSets {
+        main {
+            python.srcDir "src/main/python"
+        }
+    }
+
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+
+    defaultConfig {
+        minSdk = 24
+        targetSdk = 34
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version "3.9"
+        pip {
+            install "yt-dlp==2025.2.19"
+        }
+        extractPackages "com.arthenica:ffmpeg-kit-full:6.0"
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.0"
+    implementation 'com.arthenica:ffmpeg-kit-full:6.0'
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.14.3"
+}

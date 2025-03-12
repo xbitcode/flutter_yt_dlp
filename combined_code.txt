@@ -1,0 +1,1440 @@
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\android\build.gradle ---
+group = "com.example.flutter_yt_dlp"
+version = "1.0-SNAPSHOT"
+
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://chaquo.com/maven" }
+    }
+
+    dependencies {
+        classpath("com.android.tools.build:gradle:7.3.0")
+        classpath "com.chaquo.python:gradle:15.0.1"
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
+
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://chaquo.com/maven" }
+    }
+}
+
+apply plugin: "com.android.library"
+apply plugin: 'com.chaquo.python'
+apply plugin: "kotlin-android"
+
+android {
+    compileSdk = 34
+    namespace = "com.example.flutter_yt_dlp"
+    
+    sourceSets {
+        main {
+            python.srcDir "src/main/python"
+        }
+    }
+
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+
+
+    defaultConfig {
+        minSdk = 24
+        targetSdk = 34
+
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+chaquopy {
+    defaultConfig {
+        version "3.9"
+        pip {
+            install "yt-dlp==2025.2.19"
+        }
+        extractPackages "com.arthenica:ffmpeg-kit-full:6.0"
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.0"
+    implementation 'com.arthenica:ffmpeg-kit-full:6.0'
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.14.3"
+}
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\android\settings.gradle ---
+rootProject.name = 'flutter_yt_dlp'
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\android\src\main\AndroidManifest.xml ---
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="com.example.flutter_yt_dlp">
+</manifest>
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\android\src\main\kotlin\com\example\flutter_yt_dlp\FlutterYtDlpPlugin.kt ---
+package com.example.flutter_yt_dlp
+
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import androidx.annotation.NonNull
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
+import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
+import com.arthenica.ffmpegkit.FFmpegKit
+import java.io.File
+import java.util.UUID
+import kotlin.concurrent.thread
+
+class FlutterYtDlpPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
+    private lateinit var methodChannel: MethodChannel
+    private lateinit var eventChannel: EventChannel
+    private var eventSink: EventChannel.EventSink? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val activeDownloads = mutableMapOf<String, Boolean>()
+    private val TAG = "FlutterYtDlpPlugin"
+
+    override fun onAttachedToEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+        initializePython(binding)
+        setupChannels(binding)
+        Log.i(TAG, "Plugin attached to engine and initialized")
+    }
+
+    override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+        methodChannel.setMethodCallHandler(null)
+        eventChannel.setStreamHandler(null)
+        Log.i(TAG, "Plugin detached from engine")
+    }
+
+    override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: MethodChannel.Result) {
+        val python = Python.getInstance()
+        val module = python.getModule("yt_dlp_helper")
+        when (call.method) {
+            "getAllRawVideoWithSoundFormats" -> fetchFormats(call, result, module, "get_all_raw_video_with_sound_formats", false)
+            "getRawVideoAndAudioFormatsForMerge" -> fetchFormats(call, result, module, "get_raw_video_and_audio_formats_for_merge", null)
+            "getNonMp4VideoWithSoundFormatsForConversion" -> fetchFormats(call, result, module, "get_non_mp4_video_with_sound_formats_for_conversion", true)
+            "getAllRawAudioOnlyFormats" -> fetchFormats(call, result, module, "get_all_raw_audio_only_formats", null)
+            "getNonMp3AudioOnlyFormatsForConversion" -> fetchFormats(call, result, module, "get_non_mp3_audio_only_formats_for_conversion", null)
+            "startDownload" -> startDownloadTask(call, result)
+            "cancelDownload" -> cancelDownloadTask(call, result)
+            else -> result.notImplemented()
+        }
+    }
+
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+        eventSink = events
+        Log.i(TAG, "Event channel listening started")
+    }
+
+    override fun onCancel(arguments: Any?) {
+        eventSink = null
+        Log.i(TAG, "Event channel listening canceled")
+    }
+
+    private fun initializePython(binding: FlutterPlugin.FlutterPluginBinding) {
+        if (!Python.isStarted()) {
+            Python.start(AndroidPlatform(binding.applicationContext))
+        }
+    }
+
+    private fun setupChannels(binding: FlutterPlugin.FlutterPluginBinding) {
+        methodChannel = MethodChannel(binding.binaryMessenger, "flutter_yt_dlp")
+        methodChannel.setMethodCallHandler(this)
+        eventChannel = EventChannel(binding.binaryMessenger, "flutter_yt_dlp/events")
+        eventChannel.setStreamHandler(this)
+    }
+
+    private fun fetchFormats(
+        call: MethodCall,
+        result: MethodChannel.Result,
+        module: com.chaquo.python.PyObject,
+        methodName: String,
+        needsConversion: Boolean?
+    ) {
+        val url = call.argument<String>("url")!!
+        Log.i(TAG, "Fetching formats with method: $methodName for URL: $url")
+        val formatsJson = module.callAttr(methodName, url).toString()
+        val formats = parseJsonList(formatsJson).map { map ->
+            map.toMutableMap().apply { if (needsConversion != null) put("needsConversion", needsConversion) }
+        }
+        Log.i(TAG, "Fetched ${formats.size} formats")
+        result.success(formats)
+    }
+
+    private fun parseJsonList(json: String): List<Map<String, Any>> {
+        val listType = object : com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Any>>>() {}
+        return com.fasterxml.jackson.databind.ObjectMapper().readValue(json, listType)
+    }
+
+    private fun startDownloadTask(call: MethodCall, result: MethodChannel.Result) {
+        val format = call.argument<Map<String, Any>>("format")!!
+        val outputPath = call.argument<String>("outputPath")!!
+        val url = call.argument<String>("url")!!
+        val overwrite = call.argument<Boolean>("overwrite") ?: false
+        val taskId = UUID.randomUUID().toString()
+        activeDownloads[taskId] = true
+        thread {
+            handleDownload(taskId, format, outputPath, url, overwrite)
+        }
+        result.success(taskId)
+    }
+
+    private fun cancelDownloadTask(call: MethodCall, result: MethodChannel.Result) {
+        val taskId = call.argument<String>("taskId")!!
+        activeDownloads[taskId] = false
+        sendStateEvent(taskId, DownloadState.CANCELED.ordinal)
+        result.success(null)
+    }
+
+    private fun sendProgressEvent(taskId: String, downloaded: Long, total: Long) {
+        handler.post {
+            eventSink?.success(mapOf(
+                "taskId" to taskId,
+                "type" to "progress",
+                "downloaded" to downloaded,
+                "total" to total
+            ))
+        }
+    }
+
+    private fun sendStateEvent(taskId: String, state: Int) {
+        handler.post {
+            eventSink?.success(mapOf(
+                "taskId" to taskId,
+                "type" to "state",
+                "state" to state
+            ))
+        }
+    }
+
+    private fun handleDownload(taskId: String, format: Map<String, Any>, outputPath: String, url: String, overwrite: Boolean) {
+        val python = Python.getInstance()
+        val module = python.getModule("yt_dlp_helper")
+        Log.i(TAG, "Task $taskId: Preparing download for $url to $outputPath, overwrite: $overwrite")
+        sendStateEvent(taskId, DownloadState.PREPARING.ordinal)
+
+        val type = format["type"] as String?
+        if (type == "merge") {
+            handleMergeDownload(taskId, format, outputPath, url, overwrite, module)
+        } else {
+            handleSingleFormatDownload(taskId, format, outputPath, url, overwrite, module)
+        }
+    }
+
+    private fun handleMergeDownload(
+        taskId: String,
+        format: Map<String, Any>,
+        outputPath: String,
+        url: String,
+        overwrite: Boolean,
+        module: com.chaquo.python.PyObject
+    ) {
+        val video = format["video"] as Map<String, Any>
+        val audio = format["audio"] as Map<String, Any>
+        val videoPath = "$outputPath.video.${video["ext"]}"
+        val audioPath = "$outputPath.audio.${audio["ext"]}"
+        val progressTracker = ProgressTracker(calculateTotalSize(video, audio))
+
+        if (!isDownloadActive(taskId)) return
+
+        sendStateEvent(taskId, DownloadState.DOWNLOADING.ordinal)
+        downloadConcurrently(taskId, url, video, audio, videoPath, audioPath, overwrite, module, progressTracker)
+
+        if (!isDownloadActive(taskId)) {
+            cleanupFiles(videoPath, audioPath)
+            return
+        }
+
+        Log.i(TAG, "Task $taskId: Merging video and audio")
+        sendStateEvent(taskId, DownloadState.MERGING.ordinal)
+        mergeFiles(videoPath, audioPath, outputPath)
+        cleanupFiles(videoPath, audioPath)
+
+        if (isDownloadActive(taskId)) {
+            Log.i(TAG, "Task $taskId: Download completed")
+            sendStateEvent(taskId, DownloadState.COMPLETED.ordinal)
+        }
+    }
+
+    private fun handleSingleFormatDownload(
+        taskId: String,
+        format: Map<String, Any>,
+        outputPath: String,
+        url: String,
+        overwrite: Boolean,
+        module: com.chaquo.python.PyObject
+    ) {
+        val formatId = format["formatId"] as String
+        val ext = format["ext"] as String
+        val needsConversion = format["needsConversion"] as Boolean? ?: false
+        val tempPath = if (needsConversion) "$outputPath.temp.$ext" else outputPath
+        val totalSize = (format["size"] as Int).toLong()
+
+        if (!isDownloadActive(taskId)) return
+
+        Log.i(TAG, "Task $taskId: Downloading single format")
+        sendStateEvent(taskId, DownloadState.DOWNLOADING.ordinal)
+        downloadFile(module, url, formatId, tempPath, taskId, overwrite) { downloaded, _ ->
+            sendProgressEvent(taskId, downloaded, totalSize)
+        }
+
+        if (!isDownloadActive(taskId)) {
+            File(tempPath).delete()
+            return
+        }
+
+        if (needsConversion) {
+            convertFile(taskId, tempPath, ext, outputPath)
+        }
+
+        if (isDownloadActive(taskId)) {
+            Log.i(TAG, "Task $taskId: Download completed")
+            sendStateEvent(taskId, DownloadState.COMPLETED.ordinal)
+        }
+    }
+
+    private fun calculateTotalSize(video: Map<String, Any>, audio: Map<String, Any>): Long {
+        val videoSize = (video["size"] as Int).toLong()
+        val audioSize = (audio["size"] as Int).toLong()
+        return videoSize + audioSize
+    }
+
+    private data class ProgressTracker(val totalSize: Long) {
+        var downloadedVideo: Long = 0
+        var downloadedAudio: Long = 0
+
+        @Synchronized
+        fun updateVideoProgress(downloaded: Long) {
+            downloadedVideo = downloaded
+        }
+
+        @Synchronized
+        fun updateAudioProgress(downloaded: Long) {
+            downloadedAudio = downloaded
+        }
+
+        @Synchronized
+        fun getCombinedDownloaded(): Long = downloadedVideo + downloadedAudio
+    }
+
+    private fun downloadConcurrently(
+        taskId: String,
+        url: String,
+        video: Map<String, Any>,
+        audio: Map<String, Any>,
+        videoPath: String,
+        audioPath: String,
+        overwrite: Boolean,
+        module: com.chaquo.python.PyObject,
+        tracker: ProgressTracker
+    ) {
+        val videoThread = thread {
+            Log.i(TAG, "Task $taskId: Downloading video concurrently")
+            downloadFile(module, url, video["formatId"] as String, videoPath, taskId, overwrite) { downloaded, _ ->
+                tracker.updateVideoProgress(downloaded)
+                sendProgressEvent(taskId, tracker.getCombinedDownloaded(), tracker.totalSize)
+            }
+        }
+
+        val audioThread = thread {
+            Log.i(TAG, "Task $taskId: Downloading audio concurrently")
+            downloadFile(module, url, audio["formatId"] as String, audioPath, taskId, overwrite) { downloaded, _ ->
+                tracker.updateAudioProgress(downloaded)
+                sendProgressEvent(taskId, tracker.getCombinedDownloaded(), tracker.totalSize)
+            }
+        }
+
+        videoThread.join()
+        audioThread.join()
+    }
+
+    private fun downloadFile(
+        module: com.chaquo.python.PyObject,
+        url: String,
+        formatId: String,
+        outputPath: String,
+        taskId: String,
+        overwrite: Boolean,
+        onProgress: (Long, Long) -> Unit
+    ) {
+        module.callAttr("download_format", url, formatId, outputPath, overwrite, object : Any() {
+            @Suppress("unused")
+            fun onProgress(downloaded: Long, total: Long) {
+                if (isDownloadActive(taskId)) {
+                    onProgress(downloaded, total)
+                }
+            }
+        })
+    }
+
+    private fun mergeFiles(videoPath: String, audioPath: String, outputPath: String) {
+        FFmpegKit.execute("-i $videoPath -i $audioPath -c:v copy -c:a aac $outputPath")
+    }
+
+    private fun convertFile(taskId: String, tempPath: String, ext: String, outputPath: String) {
+        Log.i(TAG, "Task $taskId: Converting file")
+        sendStateEvent(taskId, DownloadState.CONVERTING.ordinal)
+        val finalPath = if (ext == "mp3") outputPath else "$outputPath.mp4"
+        val codec = if (ext == "mp3") "-c:a mp3" else "-c:v copy -c:a aac"
+        FFmpegKit.execute("-i $tempPath $codec $finalPath")
+        File(tempPath).delete()
+    }
+
+    private fun cleanupFiles(vararg paths: String) {
+        paths.forEach { File(it).delete() }
+    }
+
+    private fun isDownloadActive(taskId: String): Boolean = activeDownloads[taskId] == true
+}
+
+enum class DownloadState {
+    PREPARING, DOWNLOADING, MERGING, CONVERTING, COMPLETED, CANCELED, FAILED
+}
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\android\src\main\python\yt_dlp_helper.py ---
+import yt_dlp
+import json
+import os
+
+
+def _extract_format_info(f):
+    return {
+        "formatId": f.get("format_id", "unknown"),
+        "ext": f.get("ext", "unknown"),
+        "resolution": (
+            f.get("resolution", "unknown")
+            if f.get("vcodec", "none") != "none"
+            else "audio only"
+        ),
+        "bitrate": int(f.get("tbr", 0)),
+        "size": int(f.get("filesize", 0) or f.get("filesize_approx", 0) or 0),
+    }
+
+
+def get_all_raw_video_with_sound_formats(url):
+    ydl_opts = {"quiet": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        formats = [
+            f
+            for f in info["formats"]
+            if f.get("vcodec", "none") != "none" and f.get("acodec", "none") != "none"
+        ]
+        return json.dumps([_extract_format_info(f) for f in formats])
+
+
+def get_raw_video_and_audio_formats_for_merge(url):
+    ydl_opts = {"quiet": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        video_formats = [
+            f
+            for f in info["formats"]
+            if f.get("vcodec", "none") != "none" and f.get("acodec", "none") == "none"
+        ]
+        audio_formats = sorted(
+            [
+                f
+                for f in info["formats"]
+                if f.get("vcodec", "none") == "none"
+                and f.get("acodec", "none") != "none"
+            ],
+            key=lambda x: x.get("tbr", 0),
+            reverse=True,
+        )
+        best_audio = audio_formats[0] if audio_formats else None
+        if not best_audio:
+            return json.dumps([])
+        return json.dumps(
+            [
+                {
+                    "video": _extract_format_info(v),
+                    "audio": _extract_format_info(best_audio),
+                }
+                for v in video_formats
+            ]
+        )
+
+
+def get_non_mp4_video_with_sound_formats_for_conversion(url):
+    ydl_opts = {"quiet": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        formats = [
+            f
+            for f in info["formats"]
+            if f.get("vcodec", "none") != "none"
+            and f.get("acodec", "none") != "none"
+            and f.get("ext", "") != "mp4"
+        ]
+        return json.dumps([_extract_format_info(f) for f in formats])
+
+
+def get_all_raw_audio_only_formats(url):
+    ydl_opts = {"quiet": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        formats = [
+            f
+            for f in info["formats"]
+            if f.get("vcodec", "none") == "none" and f.get("acodec", "none") != "none"
+        ]
+        return json.dumps([_extract_format_info(f) for f in formats])
+
+
+def get_non_mp3_audio_only_formats_for_conversion(url):
+    ydl_opts = {"quiet": True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+        formats = [
+            f
+            for f in info["formats"]
+            if f.get("vcodec", "none") == "none"
+            and f.get("acodec", "none") != "none"
+            and f.get("ext", "") != "mp3"
+        ]
+        return json.dumps([_extract_format_info(f) for f in formats])
+
+
+def download_format(url, format_id, output_path, overwrite, progress_callback):
+    def hook(d):
+        if d["status"] == "downloading":
+            downloaded = d.get("downloaded_bytes", 0)
+            total = d.get("total_bytes", 0) or d.get("total_bytes_estimated", 0) or 0
+            progress_callback.onProgress(downloaded, total)
+        elif d["status"] == "finished":
+            total = d.get("total_bytes", 0) or d.get("total_bytes_estimated", 0) or 0
+            progress_callback.onProgress(total, total)
+
+    ydl_opts = {
+        "format": format_id,
+        "outtmpl": output_path,
+        "progress_hooks": [hook],
+        "force_overwrites": overwrite,  # Force overwrite if true
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\android\app\build.gradle ---
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace = "com.example.flutter_yt_dlp_example"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId = "com.example.flutter_yt_dlp_example"
+        // You can update the following values to match your application needs.
+        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        minSdk = 24
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    buildTypes {
+        release {
+            // TODO: Add your own signing config for the release build.
+            // Signing with the debug keys for now, so `flutter run --release` works.
+            signingConfig = signingConfigs.debug
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\android\app\src\main\AndroidManifest.xml ---
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" /> <!-- Added -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" /> <!-- Added -->
+    <application
+        android:label="flutter_yt_dlp_example"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\android\app\src\main\kotlin\com\example\flutter_yt_dlp_example\MainActivity.kt ---
+package com.example.flutter_yt_dlp_example
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity: FlutterActivity()
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\android\build.gradle ---
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+rootProject.buildDir = "../build"
+subprojects {
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
+}
+subprojects {
+    project.evaluationDependsOn(":app")
+}
+
+tasks.register("clean", Delete) {
+    delete rootProject.buildDir
+}
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\android\gradle\wrapper\gradle-wrapper.properties ---
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.3-all.zip
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\android\settings.gradle ---
+pluginManagement {
+    def flutterSdkPath = {
+        def properties = new Properties()
+        file("local.properties").withInputStream { properties.load(it) }
+        def flutterSdkPath = properties.getProperty("flutter.sdk")
+        assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
+        return flutterSdkPath
+    }()
+
+    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+plugins {
+    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+    id "com.android.application" version "8.1.0" apply false
+    id "org.jetbrains.kotlin.android" version "2.1.10" apply false
+}
+
+include ":app"
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\lib\main.dart ---
+import 'package:flutter/material.dart';
+import 'package:flutter_yt_dlp/flutter_yt_dlp.dart';
+import 'package:permission_handler/permission_handler.dart';
+
+void main() {
+  FlutterYtDlpPlugin.initialize(); // Initialize the plugin with logging
+  runApp(MyApp());
+}
+
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String status = "Idle";
+  double progress = 0.0;
+
+  Future<bool> _requestStoragePermission() async {
+    final status = await Permission.storage.request();
+    return status.isGranted;
+  }
+
+  Future<void> _downloadSmallestFormat<T>({
+    required String url,
+    required String outputDir,
+    required String originalName,
+    required Future<List<T>> Function(String) fetchFormats,
+    required String buttonLabel,
+  }) async {
+    if (await _requestStoragePermission()) {
+      final formats = await fetchFormats(url);
+      if (formats.isNotEmpty) {
+        dynamic smallestFormat;
+
+        if (formats.first is MergeFormat) {
+          // Handle MergeFormat: pick smallest video and smallest audio separately
+          final mergeFormats = formats.cast<MergeFormat>();
+
+          // Get all unique video and audio formats
+          final videoFormats =
+              mergeFormats.map((f) => f.video).toSet().toList();
+          final audioFormats =
+              mergeFormats.map((f) => f.audio).toSet().toList();
+
+          // Find smallest video (size > 0 preferred, then resolution, then bitrate)
+          final smallestVideo = videoFormats.reduce((a, b) {
+            if (a.size > 0 && b.size > 0) return a.size < b.size ? a : b;
+            if (a.size > 0) return a;
+            if (b.size > 0) return b;
+            final resA = _parseResolution(a.resolution);
+            final resB = _parseResolution(b.resolution);
+            if (resA != resB) return resA < resB ? a : b;
+            return a.bitrate < b.bitrate ? a : b;
+          });
+
+          // Find smallest audio (size > 0 preferred, then bitrate)
+          final smallestAudio = audioFormats.reduce((a, b) {
+            if (a.size > 0 && b.size > 0) return a.size < b.size ? a : b;
+            if (a.size > 0) return a;
+            if (b.size > 0) return b;
+            return a.bitrate < b.bitrate ? a : b;
+          });
+
+          smallestFormat =
+              MergeFormat(video: smallestVideo, audio: smallestAudio);
+        } else {
+          // Handle Format or CombinedFormat: pick smallest by size, then quality
+          smallestFormat = formats.reduce((a, b) {
+            if (a is Format && b is Format) {
+              if (a.size > 0 && b.size > 0) return a.size < b.size ? a : b;
+              if (a.size > 0) return a;
+              if (b.size > 0) return b;
+              final resA = _parseResolution(a.resolution);
+              final resB = _parseResolution(b.resolution);
+              if (resA != resB) return resA < resB ? a : b;
+              return a.bitrate < b.bitrate ? a : b;
+            } else {
+              throw ArgumentError('Inconsistent format types in list');
+            }
+          });
+        }
+
+        final task = await FlutterYtDlpPlugin.download(
+          format: smallestFormat,
+          outputDir: outputDir,
+          url: url,
+          originalName: originalName,
+          overwrite: true,
+        );
+        task.progressStream.listen((p) {
+          setState(() {
+            progress = p.downloadedBytes / p.totalBytes;
+            status =
+                "$buttonLabel: ${FlutterYtDlpPlugin.formatBytes(p.downloadedBytes)} / ${FlutterYtDlpPlugin.formatBytes(p.totalBytes)}";
+          });
+        });
+        task.stateStream.listen((s) {
+          setState(() {
+            status = "$buttonLabel: ${s.toString().split('.').last}";
+          });
+        });
+      } else {
+        setState(() {
+          status = "No formats found for $buttonLabel";
+        });
+      }
+    } else {
+      setState(() {
+        status = "Storage permission denied";
+      });
+    }
+  }
+
+  // Helper function to parse resolution into a comparable number (width * height)
+  int _parseResolution(String resolution) {
+    if (resolution == 'audio only') return 0;
+    final parts = resolution.split('x');
+    if (parts.length != 2) return 0; // Fallback for invalid resolution
+    final width = int.tryParse(parts[0]) ?? 0;
+    final height = int.tryParse(parts[1]) ?? 0;
+    return width * height;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const outputDir = "/sdcard/Download";
+    const originalName = "RickRoll";
+
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: Text('Plugin Test')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(status),
+              SizedBox(height: 20),
+              LinearProgressIndicator(value: progress),
+              SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => _downloadSmallestFormat<CombinedFormat>(
+                  url: url,
+                  outputDir: outputDir,
+                  originalName: originalName,
+                  fetchFormats:
+                      FlutterYtDlpPlugin.getAllRawVideoWithSoundFormats,
+                  buttonLabel: "Raw Video+Sound",
+                ),
+                child: Text("Download Smallest Raw Video+Sound"),
+              ),
+              SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () => _downloadSmallestFormat<MergeFormat>(
+                  url: url,
+                  outputDir: outputDir,
+                  originalName: originalName,
+                  fetchFormats:
+                      FlutterYtDlpPlugin.getRawVideoAndAudioFormatsForMerge,
+                  buttonLabel: "Merge Video+Audio",
+                ),
+                child: Text("Download Smallest Merge Video+Audio"),
+              ),
+              SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () => _downloadSmallestFormat<CombinedFormat>(
+                  url: url,
+                  outputDir: outputDir,
+                  originalName: originalName,
+                  fetchFormats: FlutterYtDlpPlugin
+                      .getNonMp4VideoWithSoundFormatsForConversion,
+                  buttonLabel: "Convert Video+Sound",
+                ),
+                child: Text("Download Smallest Convert Video+Sound"),
+              ),
+              SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () => _downloadSmallestFormat<Format>(
+                  url: url,
+                  outputDir: outputDir,
+                  originalName: originalName,
+                  fetchFormats: FlutterYtDlpPlugin.getAllRawAudioOnlyFormats,
+                  buttonLabel: "Raw Audio",
+                ),
+                child: Text("Download Smallest Raw Audio"),
+              ),
+              SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () => _downloadSmallestFormat<Format>(
+                  url: url,
+                  outputDir: outputDir,
+                  originalName: originalName,
+                  fetchFormats:
+                      FlutterYtDlpPlugin.getNonMp3AudioOnlyFormatsForConversion,
+                  buttonLabel: "Convert Audio",
+                ),
+                child: Text("Download Smallest Convert Audio"),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\pubspec.yaml ---
+name: flutter_yt_dlp_example
+description: "Demonstrates how to use the flutter_yt_dlp plugin."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+environment:
+  sdk: ^3.5.3
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  flutter_yt_dlp:
+    # When depending on this package from a real application you should use:
+    #   flutter_yt_dlp: ^x.y.z
+    # See https://dart.dev/tools/pub/dependencies#version-constraints
+    # The example app is bundled with the plugin so we use a path dependency on
+    # the parent directory to use the current plugin's version.
+    path: ../
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  permission_handler: ^11.4.0
+  logging: ^1.2.0
+
+dev_dependencies:
+  integration_test:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^4.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # To add assets to your application, add an assets section, like this:
+  # assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\lib\flutter_yt_dlp.dart ---
+import 'dart:async';
+import 'package:flutter/services.dart';
+import 'package:logging/logging.dart';
+
+// Setup logging
+final Logger _logger = Logger('FlutterYtDlpPlugin');
+
+void _setupLogging() {
+  Logger.root.level = Level.ALL;
+  Logger.root.onRecord.listen((record) {
+    print('${record.level.name}: ${record.time}: ${record.message}');
+  });
+}
+
+// Base Format class
+class Format {
+  final String formatId;
+  final String ext;
+  final String resolution;
+  final int bitrate;
+  final int size;
+
+  Format({
+    required this.formatId,
+    required this.ext,
+    required this.resolution,
+    required this.bitrate,
+    required this.size,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'formatId': formatId,
+        'ext': ext,
+        'resolution': resolution,
+        'bitrate': bitrate,
+        'size': size,
+      };
+
+  factory Format.fromMap(Map<Object?, Object?> map) => Format(
+        formatId: map['formatId'] as String,
+        ext: map['ext'] as String,
+        resolution: map['resolution'] as String,
+        bitrate: map['bitrate'] as int,
+        size: map['size'] as int,
+      );
+
+  String toLogString() =>
+      'Format ID: $formatId, Ext: $ext, Resolution: $resolution, Bitrate: $bitrate kbps, Size: ${FlutterYtDlpPlugin.formatBytes(size)}';
+}
+
+// CombinedFormat for video+sound
+class CombinedFormat extends Format {
+  final bool needsConversion;
+
+  CombinedFormat({
+    required super.formatId,
+    required super.ext,
+    required super.resolution,
+    required super.bitrate,
+    required super.size,
+    required this.needsConversion,
+  });
+
+  @override
+  Map<String, dynamic> toMap() => {
+        ...super.toMap(),
+        'needsConversion': needsConversion,
+        'type': 'combined',
+      };
+
+  factory CombinedFormat.fromMap(Map<Object?, Object?> map) => CombinedFormat(
+        formatId: map['formatId'] as String,
+        ext: map['ext'] as String,
+        resolution: map['resolution'] as String,
+        bitrate: map['bitrate'] as int,
+        size: map['size'] as int,
+        needsConversion: map['needsConversion'] as bool,
+      );
+
+  @override
+  String toLogString() =>
+      '${super.toLogString()}, Needs Conversion: $needsConversion';
+}
+
+// MergeFormat for video+audio pairs
+class MergeFormat {
+  final Format video;
+  final Format audio;
+
+  MergeFormat({required this.video, required this.audio});
+
+  Map<String, dynamic> toMap() => {
+        'video': video.toMap(),
+        'audio': audio.toMap(),
+        'type': 'merge',
+      };
+
+  factory MergeFormat.fromMap(Map<Object?, Object?> map) => MergeFormat(
+        video: Format.fromMap(map['video'] as Map<Object?, Object?>),
+        audio: Format.fromMap(map['audio'] as Map<Object?, Object?>),
+      );
+
+  String toLogString() =>
+      'Video: ${video.toLogString()}, Audio: ${audio.toLogString()}';
+}
+
+// DownloadProgress class
+class DownloadProgress {
+  final int downloadedBytes;
+  final int totalBytes;
+
+  DownloadProgress({
+    required this.downloadedBytes,
+    required this.totalBytes,
+  });
+
+  factory DownloadProgress.fromMap(Map<Object?, Object?> map) =>
+      DownloadProgress(
+        downloadedBytes: map['downloaded'] as int,
+        totalBytes: map['total'] as int,
+      );
+}
+
+// DownloadState enum
+enum DownloadState {
+  preparing,
+  downloading,
+  merging,
+  converting,
+  completed,
+  canceled,
+  failed,
+}
+
+// DownloadTask class
+class DownloadTask {
+  final String taskId;
+  final Stream<DownloadProgress> progressStream;
+  final Stream<DownloadState> stateStream;
+  final Future<void> Function() cancel;
+
+  DownloadTask({
+    required this.taskId,
+    required this.progressStream,
+    required this.stateStream,
+    required this.cancel,
+  });
+}
+
+class FlutterYtDlpPlugin {
+  static const MethodChannel _channel = MethodChannel('flutter_yt_dlp');
+  static const EventChannel _eventChannel =
+      EventChannel('flutter_yt_dlp/events');
+
+  static void initialize() {
+    _setupLogging();
+    _logger.info('FlutterYtDlpPlugin initialized');
+  }
+
+  static Future<List<CombinedFormat>> getAllRawVideoWithSoundFormats(
+      String url) async {
+    _logger.info('Fetching all raw video with sound formats for URL: $url');
+    final List<dynamic> result = await _channel
+        .invokeMethod('getAllRawVideoWithSoundFormats', {'url': url});
+    final formats = result
+        .map((e) => CombinedFormat.fromMap(e as Map<Object?, Object?>))
+        .toList();
+    _logger.info('Fetched ${formats.length} raw video+sound formats:');
+    for (var format in formats) {
+      _logger.info(format.toLogString());
+    }
+    return formats;
+  }
+
+  static Future<List<MergeFormat>> getRawVideoAndAudioFormatsForMerge(
+      String url) async {
+    _logger
+        .info('Fetching raw video and audio formats for merge for URL: $url');
+    final List<dynamic> result = await _channel
+        .invokeMethod('getRawVideoAndAudioFormatsForMerge', {'url': url});
+    final formats = result
+        .map((e) => MergeFormat.fromMap(e as Map<Object?, Object?>))
+        .toList();
+    _logger.info('Fetched ${formats.length} merge video+audio formats:');
+    for (var format in formats) {
+      _logger.info(format.toLogString());
+    }
+    return formats;
+  }
+
+  static Future<List<CombinedFormat>>
+      getNonMp4VideoWithSoundFormatsForConversion(String url) async {
+    _logger.info(
+        'Fetching non-MP4 video with sound formats for conversion for URL: $url');
+    final List<dynamic> result = await _channel.invokeMethod(
+        'getNonMp4VideoWithSoundFormatsForConversion', {'url': url});
+    final formats = result
+        .map((e) => CombinedFormat.fromMap(e as Map<Object?, Object?>))
+        .toList();
+    _logger.info('Fetched ${formats.length} non-MP4 video+sound formats:');
+    for (var format in formats) {
+      _logger.info(format.toLogString());
+    }
+    return formats;
+  }
+
+  static Future<List<Format>> getAllRawAudioOnlyFormats(String url) async {
+    _logger.info('Fetching all raw audio-only formats for URL: $url');
+    final List<dynamic> result =
+        await _channel.invokeMethod('getAllRawAudioOnlyFormats', {'url': url});
+    final formats =
+        result.map((e) => Format.fromMap(e as Map<Object?, Object?>)).toList();
+    _logger.info('Fetched ${formats.length} raw audio-only formats:');
+    for (var format in formats) {
+      _logger.info(format.toLogString());
+    }
+    return formats;
+  }
+
+  static Future<List<Format>> getNonMp3AudioOnlyFormatsForConversion(
+      String url) async {
+    _logger.info(
+        'Fetching non-MP3 audio-only formats for conversion for URL: $url');
+    final List<dynamic> result = await _channel
+        .invokeMethod('getNonMp3AudioOnlyFormatsForConversion', {'url': url});
+    final formats =
+        result.map((e) => Format.fromMap(e as Map<Object?, Object?>)).toList();
+    _logger.info('Fetched ${formats.length} non-MP3 audio-only formats:');
+    for (var format in formats) {
+      _logger.info(format.toLogString());
+    }
+    return formats;
+  }
+
+  static Future<List<dynamic>> getAllVideoWithSoundFormats(String url) async {
+    _logger.info('Fetching all video with sound formats for URL: $url');
+    final rawCombined = await getAllRawVideoWithSoundFormats(url);
+    final mergeFormats = await getRawVideoAndAudioFormatsForMerge(url);
+    final convertFormats =
+        await getNonMp4VideoWithSoundFormatsForConversion(url);
+    final allFormats = [...rawCombined, ...mergeFormats, ...convertFormats];
+    _logger.info('Total video+sound formats fetched: ${allFormats.length}');
+    return allFormats;
+  }
+
+  static Future<List<Format>> getAllAudioOnlyFormats(String url) async {
+    _logger.info('Fetching all audio-only formats for URL: $url');
+    final rawAudio = await getAllRawAudioOnlyFormats(url);
+    final convertAudio = await getNonMp3AudioOnlyFormatsForConversion(url);
+    final allFormats = [...rawAudio, ...convertAudio];
+    _logger.info('Total audio-only formats fetched: ${allFormats.length}');
+    return allFormats;
+  }
+
+  static String _generateFileName(
+      String originalName, String resolution, int bitrate, String ext) {
+    final cleanName = originalName.replaceAll(RegExp(r'[^\w\s-]'), '').trim();
+    return "${cleanName}_${resolution}_${bitrate}kbps.$ext";
+  }
+
+  static Future<DownloadTask> download({
+    required dynamic format,
+    required String outputDir,
+    required String url,
+    required String originalName,
+    bool overwrite = false,
+  }) async {
+    _logger.info('Starting download for URL: $url with overwrite: $overwrite');
+    String outputPath;
+    String sizeInfo = '';
+
+    if (format is MergeFormat) {
+      outputPath =
+          "$outputDir/${_generateFileName(originalName, format.video.resolution, format.audio.bitrate, 'mp4')}";
+      sizeInfo =
+          'Video: ${format.video.toLogString()} | Audio: ${format.audio.toLogString()}';
+    } else if (format is CombinedFormat) {
+      final ext = format.needsConversion ? 'mp4' : format.ext;
+      outputPath =
+          "$outputDir/${_generateFileName(originalName, format.resolution, format.bitrate, ext)}";
+      sizeInfo = format.toLogString();
+    } else if (format is Format) {
+      final ext =
+          format.ext == 'mp3' || format.ext != 'mp3' ? 'mp3' : format.ext;
+      outputPath =
+          "$outputDir/${_generateFileName(originalName, format.resolution, format.bitrate, ext)}";
+      sizeInfo = format.toLogString();
+    } else {
+      throw ArgumentError('Unsupported format type');
+    }
+
+    _logger.info('Format details: $sizeInfo');
+    _logger.info('Output path: $outputPath');
+
+    final Map<String, dynamic> formatMap;
+    if (format is MergeFormat) {
+      formatMap = format.toMap();
+    } else if (format is CombinedFormat) {
+      formatMap = format.toMap();
+    } else if (format is Format) {
+      formatMap = format.toMap();
+    } else {
+      throw ArgumentError('Unsupported format type');
+    }
+
+    final String taskId = await _channel.invokeMethod('startDownload', {
+      'format': formatMap,
+      'outputPath': outputPath,
+      'url': url,
+      'overwrite': overwrite,
+    });
+    _logger.info('Download task started with ID: $taskId');
+
+    final progressController = StreamController<DownloadProgress>();
+    final stateController = StreamController<DownloadState>();
+
+    _eventChannel.receiveBroadcastStream().listen((event) {
+      final map = event as Map<Object?, Object?>;
+      if (map['taskId'] == taskId) {
+        if (map['type'] == 'progress') {
+          final progress =
+              DownloadProgress.fromMap(map.cast<String, dynamic>());
+          _logger.info(
+              'Progress for task $taskId: ${formatBytes(progress.downloadedBytes)} / ${formatBytes(progress.totalBytes)}');
+          progressController.add(progress);
+        } else if (map['type'] == 'state') {
+          final state = DownloadState.values[map['state'] as int];
+          _logger.info('State change for task $taskId: ${state.name}');
+          stateController.add(state);
+        }
+      }
+    });
+
+    Future<void> cancel() async {
+      _logger.info('Canceling download task $taskId');
+      await _channel.invokeMethod('cancelDownload', {'taskId': taskId});
+    }
+
+    return DownloadTask(
+      taskId: taskId,
+      progressStream: progressController.stream,
+      stateStream: stateController.stream,
+      cancel: cancel,
+    );
+  }
+
+  static String formatBytes(int bytes) {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    double size = bytes.toDouble();
+    int unitIndex = 0;
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+
+    return '${size.toStringAsFixed(2)} ${units[unitIndex]}';
+  }
+}
+
+
+--- C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\pubspec.yaml ---
+name: flutter_yt_dlp
+description: "A Flutter plugin for downloading and processing media using yt-dlp and FFmpeg."
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: '>=3.5.3 <4.0.0'
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  plugin_platform_interface: ^2.0.2
+  logging: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+  # This section identifies this Flutter project as a plugin project.
+  # The 'pluginClass' specifies the class (in Java, Kotlin, Swift, Objective-C, etc.)
+  # which should be registered in the plugin registry. This is required for
+  # using method channels.
+  # The Android 'package' specifies package in which the registered class is.
+  # This is required for using method channels on Android.
+  # The 'ffiPlugin' specifies that native code should be built and bundled.
+  # This is required for using `dart:ffi`.
+  # All these are used by the tooling to maintain consistency when
+  # adding or updating assets for this project.
+  plugin:
+    platforms:
+      android:
+        package: com.example.flutter_yt_dlp
+        pluginClass: FlutterYtDlpPlugin
+
+  # To add assets to your plugin package, add an assets section, like this:
+  # assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
+  #
+  # For details regarding assets in packages, see
+  # https://flutter.dev/to/asset-from-package
+  #
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # To add custom fonts to your plugin package, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  # fonts:
+  #   - family: Schyler
+  #     fonts:
+  #       - asset: fonts/Schyler-Regular.ttf
+  #       - asset: fonts/Schyler-Italic.ttf
+  #         style: italic
+  #   - family: Trajan Pro
+  #     fonts:
+  #       - asset: fonts/TrajanPro.ttf
+  #       - asset: fonts/TrajanPro_Bold.ttf
+  #         weight: 700
+  #
+  # For details regarding fonts in packages, see
+  # https://flutter.dev/to/font-from-package
+
+
