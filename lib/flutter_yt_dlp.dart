@@ -1,3 +1,4 @@
+// C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\lib\flutter_yt_dlp.dart
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
@@ -7,6 +8,7 @@ final Logger _logger = Logger('FlutterYtDlpPlugin');
 void _setupLogging() {
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
+    // ignore: avoid_print
     print('${record.level.name}: ${record.time}: ${record.message}');
   });
 }
@@ -104,16 +106,15 @@ class DownloadProgress {
   final int downloadedBytes;
   final int totalBytes;
 
-  DownloadProgress({
-    required this.downloadedBytes,
-    required this.totalBytes,
-  });
+  DownloadProgress({required this.downloadedBytes, required this.totalBytes});
 
   factory DownloadProgress.fromMap(Map<Object?, Object?> map) =>
       DownloadProgress(
         downloadedBytes: map['downloaded'] as int,
         totalBytes: map['total'] as int,
       );
+
+  double get percentage => totalBytes > 0 ? downloadedBytes / totalBytes : 0.0;
 }
 
 enum DownloadState {
@@ -152,141 +153,48 @@ class FlutterYtDlpPlugin {
 
   static Future<List<CombinedFormat>> getAllRawVideoWithSoundFormats(
       String url) async {
-    try {
-      _logger.info('Fetching all raw video with sound formats for URL: $url');
-      final List<dynamic> result = await _channel
-          .invokeMethod('getAllRawVideoWithSoundFormats', {'url': url});
-      final formats = result
-          .map((e) => CombinedFormat.fromMap(e as Map<Object?, Object?>))
-          .toList();
-      _logger.info('Fetched ${formats.length} raw video+sound formats:');
-      for (var format in formats) {
-        _logger.info(format.toLogString());
-      }
-      return formats;
-    } on PlatformException catch (e) {
-      _logger.severe('Error fetching raw video+sound formats: ${e.message}');
-      rethrow;
-    }
+    final result = await _fetchFormats('getAllRawVideoWithSoundFormats', url);
+    return result.map((e) => CombinedFormat.fromMap(e)).toList();
   }
 
   static Future<List<MergeFormat>> getRawVideoAndAudioFormatsForMerge(
       String url) async {
-    try {
-      _logger
-          .info('Fetching raw video and audio formats for merge for URL: $url');
-      final List<dynamic> result = await _channel
-          .invokeMethod('getRawVideoAndAudioFormatsForMerge', {'url': url});
-      final formats = result
-          .map((e) => MergeFormat.fromMap(e as Map<Object?, Object?>))
-          .toList();
-      _logger.info('Fetched ${formats.length} merge video+audio formats:');
-      for (var format in formats) {
-        _logger.info(format.toLogString());
-      }
-      return formats;
-    } on PlatformException catch (e) {
-      _logger.severe('Error fetching merge formats: ${e.message}');
-      rethrow;
-    }
+    final result =
+        await _fetchFormats('getRawVideoAndAudioFormatsForMerge', url);
+    return result.map((e) => MergeFormat.fromMap(e)).toList();
   }
 
   static Future<List<CombinedFormat>>
       getNonMp4VideoWithSoundFormatsForConversion(String url) async {
-    try {
-      _logger.info(
-          'Fetching non-MP4 video with sound formats for conversion for URL: $url');
-      final List<dynamic> result = await _channel.invokeMethod(
-          'getNonMp4VideoWithSoundFormatsForConversion', {'url': url});
-      final formats = result
-          .map((e) => CombinedFormat.fromMap(e as Map<Object?, Object?>))
-          .toList();
-      _logger.info('Fetched ${formats.length} non-MP4 video+sound formats:');
-      for (var format in formats) {
-        _logger.info(format.toLogString());
-      }
-      return formats;
-    } on PlatformException catch (e) {
-      _logger
-          .severe('Error fetching non-MP4 video+sound formats: ${e.message}');
-      rethrow;
-    }
+    final result =
+        await _fetchFormats('getNonMp4VideoWithSoundFormatsForConversion', url);
+    return result.map((e) => CombinedFormat.fromMap(e)).toList();
   }
 
   static Future<List<Format>> getAllRawAudioOnlyFormats(String url) async {
-    try {
-      _logger.info('Fetching all raw audio-only formats for URL: $url');
-      final List<dynamic> result = await _channel
-          .invokeMethod('getAllRawAudioOnlyFormats', {'url': url});
-      final formats = result
-          .map((e) => Format.fromMap(e as Map<Object?, Object?>))
-          .toList();
-      _logger.info('Fetched ${formats.length} raw audio-only formats:');
-      for (var format in formats) {
-        _logger.info(format.toLogString());
-      }
-      return formats;
-    } on PlatformException catch (e) {
-      _logger.severe('Error fetching raw audio-only formats: ${e.message}');
-      rethrow;
-    }
+    final result = await _fetchFormats('getAllRawAudioOnlyFormats', url);
+    return result.map((e) => Format.fromMap(e)).toList();
   }
 
   static Future<List<Format>> getNonMp3AudioOnlyFormatsForConversion(
       String url) async {
-    try {
-      _logger.info(
-          'Fetching non-MP3 audio-only formats for conversion for URL: $url');
-      final List<dynamic> result = await _channel
-          .invokeMethod('getNonMp3AudioOnlyFormatsForConversion', {'url': url});
-      final formats = result
-          .map((e) => Format.fromMap(e as Map<Object?, Object?>))
-          .toList();
-      _logger.info('Fetched ${formats.length} non-MP3 audio-only formats:');
-      for (var format in formats) {
-        _logger.info(format.toLogString());
-      }
-      return formats;
-    } on PlatformException catch (e) {
-      _logger.severe('Error fetching non-MP3 audio-only formats: ${e.message}');
-      rethrow;
-    }
+    final result =
+        await _fetchFormats('getNonMp3AudioOnlyFormatsForConversion', url);
+    return result.map((e) => Format.fromMap(e)).toList();
   }
 
   static Future<List<dynamic>> getAllVideoWithSoundFormats(String url) async {
-    try {
-      _logger.info('Fetching all video with sound formats for URL: $url');
-      final rawCombined = await getAllRawVideoWithSoundFormats(url);
-      final mergeFormats = await getRawVideoAndAudioFormatsForMerge(url);
-      final convertFormats =
-          await getNonMp4VideoWithSoundFormatsForConversion(url);
-      final allFormats = [...rawCombined, ...mergeFormats, ...convertFormats];
-      _logger.info('Total video+sound formats fetched: ${allFormats.length}');
-      return allFormats;
-    } on PlatformException catch (e) {
-      _logger.severe('Error fetching all video+sound formats: ${e.message}');
-      rethrow;
-    }
+    final rawCombined = await getAllRawVideoWithSoundFormats(url);
+    final mergeFormats = await getRawVideoAndAudioFormatsForMerge(url);
+    final convertFormats =
+        await getNonMp4VideoWithSoundFormatsForConversion(url);
+    return [...rawCombined, ...mergeFormats, ...convertFormats];
   }
 
   static Future<List<Format>> getAllAudioOnlyFormats(String url) async {
-    try {
-      _logger.info('Fetching all audio-only formats for URL: $url');
-      final rawAudio = await getAllRawAudioOnlyFormats(url);
-      final convertAudio = await getNonMp3AudioOnlyFormatsForConversion(url);
-      final allFormats = [...rawAudio, ...convertAudio];
-      _logger.info('Total audio-only formats fetched: ${allFormats.length}');
-      return allFormats;
-    } on PlatformException catch (e) {
-      _logger.severe('Error fetching all audio-only formats: ${e.message}');
-      rethrow;
-    }
-  }
-
-  static String _generateFileName(
-      String originalName, String resolution, int bitrate, String ext) {
-    final cleanName = originalName.replaceAll(RegExp(r'[^\w\s-]'), '').trim();
-    return "${cleanName}_${resolution}_${bitrate}kbps.$ext";
+    final rawAudio = await getAllRawAudioOnlyFormats(url);
+    final convertAudio = await getNonMp3AudioOnlyFormatsForConversion(url);
+    return [...rawAudio, ...convertAudio];
   }
 
   static Future<DownloadTask> download({
@@ -296,114 +204,131 @@ class FlutterYtDlpPlugin {
     required String originalName,
     bool overwrite = false,
   }) async {
-    try {
-      _logger
-          .info('Starting download for URL: $url with overwrite: $overwrite');
-      String outputPath;
-      String sizeInfo = '';
-
-      if (format is MergeFormat) {
-        outputPath =
-            "$outputDir/${_generateFileName(originalName, format.video.resolution, format.audio.bitrate, 'mp4')}";
-        sizeInfo =
-            'Video: ${format.video.toLogString()} | Audio: ${format.audio.toLogString()}';
-      } else if (format is CombinedFormat) {
-        final ext = format.needsConversion ? 'mp4' : format.ext;
-        outputPath =
-            "$outputDir/${_generateFileName(originalName, format.resolution, format.bitrate, ext)}";
-        sizeInfo = format.toLogString();
-      } else if (format is Format) {
-        final ext = format.ext != 'mp3'
-            ? 'mp3'
-            : format.ext; // Ensure non-MP3 converts to MP3
-        outputPath =
-            "$outputDir/${_generateFileName(originalName, format.resolution, format.bitrate, ext)}";
-        sizeInfo = format.toLogString();
-      } else {
-        throw ArgumentError('Unsupported format type');
-      }
-
-      _logger.info('Format details: $sizeInfo');
-      _logger.info('Output path: $outputPath');
-
-      final Map<String, dynamic> formatMap;
-      if (format is MergeFormat) {
-        formatMap = format.toMap();
-      } else if (format is CombinedFormat) {
-        formatMap = format.toMap();
-      } else if (format is Format) {
-        formatMap = format.toMap();
-      } else {
-        throw ArgumentError('Unsupported format type');
-      }
-
-      final String taskId = await _channel.invokeMethod('startDownload', {
-        'format': formatMap,
-        'outputPath': outputPath,
-        'url': url,
-        'overwrite': overwrite,
-      });
-      _logger.info('Download task started with ID: $taskId');
-
-      final progressController = StreamController<DownloadProgress>();
-      final stateController = StreamController<DownloadState>();
-
-      // Declare subscription before using it
-      late StreamSubscription subscription;
-      subscription = _eventChannel.receiveBroadcastStream().listen((event) {
-        final map = event as Map<Object?, Object?>;
-        if (map['taskId'] == taskId) {
-          if (map['type'] == 'progress') {
-            final progress =
-                DownloadProgress.fromMap(map.cast<String, dynamic>());
-            _logger.info(
-                'Progress for task $taskId: ${formatBytes(progress.downloadedBytes)} / ${formatBytes(progress.totalBytes)}');
-            progressController.add(progress);
-          } else if (map['type'] == 'state') {
-            final state = DownloadState.values[map['state'] as int];
-            _logger.info('State change for task $taskId: ${state.name}');
-            stateController.add(state);
-            if (state == DownloadState.completed ||
-                state == DownloadState.failed ||
-                state == DownloadState.canceled) {
-              progressController.close();
-              stateController.close();
-              subscription.cancel();
-            }
-          }
-        }
-      });
-
-      Future<void> cancel() async {
-        _logger.info('Canceling download task $taskId');
-        await _channel.invokeMethod('cancelDownload', {'taskId': taskId});
-        progressController.close();
-        stateController.close();
-        subscription.cancel();
-      }
-
-      return DownloadTask(
-        taskId: taskId,
-        progressStream: progressController.stream,
-        stateStream: stateController.stream,
-        cancel: cancel,
-      );
-    } on PlatformException catch (e) {
-      _logger.severe('Error starting download: ${e.message}');
-      rethrow;
-    }
+    final outputPath = _generateOutputPath(format, outputDir, originalName);
+    final formatMap = _convertFormatToMap(format);
+    final taskId = await _startDownload(formatMap, outputPath, url, overwrite);
+    return _createDownloadTask(taskId);
   }
 
   static String formatBytes(int bytes) {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     double size = bytes.toDouble();
     int unitIndex = 0;
-
     while (size >= 1024 && unitIndex < units.length - 1) {
       size /= 1024;
       unitIndex++;
     }
-
     return '${size.toStringAsFixed(2)} ${units[unitIndex]}';
+  }
+
+  static Future<List<dynamic>> _fetchFormats(String method, String url) async {
+    try {
+      _logger.info('Fetching $method for URL: $url');
+      final result = await _channel.invokeMethod(method, {'url': url});
+      final formats = (result as List<dynamic>).cast<Map<Object?, Object?>>();
+      _logger.info('Fetched ${formats.length} formats');
+      formats.forEach((f) => _logger.info(_formatToLogString(f)));
+      return formats;
+    } on PlatformException catch (e) {
+      _logger.severe('Error fetching $method: ${e.message}');
+      rethrow;
+    }
+  }
+
+  static String _generateOutputPath(
+      dynamic format, String outputDir, String originalName) {
+    final cleanName = originalName.replaceAll(RegExp(r'[^\w\s-]'), '').trim();
+    if (format is MergeFormat) {
+      return "$outputDir/${cleanName}_${format.video.resolution}_${format.audio.bitrate}kbps.mp4";
+    } else if (format is CombinedFormat) {
+      final ext = format.needsConversion ? 'mp4' : format.ext;
+      return "$outputDir/${cleanName}_${format.resolution}_${format.bitrate}kbps.$ext";
+    } else if (format is Format) {
+      final ext = format.ext != 'mp3' ? 'mp3' : format.ext;
+      return "$outputDir/${cleanName}_${format.resolution}_${format.bitrate}kbps.$ext";
+    }
+    throw ArgumentError('Unsupported format type');
+  }
+
+  static Map<String, dynamic> _convertFormatToMap(dynamic format) {
+    if (format is MergeFormat) return format.toMap();
+    if (format is CombinedFormat) return format.toMap();
+    if (format is Format) return format.toMap();
+    throw ArgumentError('Unsupported format type');
+  }
+
+  static Future<String> _startDownload(
+    Map<String, dynamic> formatMap,
+    String outputPath,
+    String url,
+    bool overwrite,
+  ) async {
+    try {
+      _logger.info('Starting download for URL: $url to $outputPath');
+      return await _channel.invokeMethod('startDownload', {
+        'format': formatMap,
+        'outputPath': outputPath,
+        'url': url,
+        'overwrite': overwrite,
+      }) as String;
+    } on PlatformException catch (e) {
+      _logger.severe('Error starting download: ${e.message}');
+      rethrow;
+    }
+  }
+
+  static DownloadTask _createDownloadTask(String taskId) {
+    final progressController = StreamController<DownloadProgress>.broadcast();
+    final stateController = StreamController<DownloadState>.broadcast();
+
+    late StreamSubscription subscription;
+    subscription = _eventChannel.receiveBroadcastStream().listen((event) {
+      final map = event as Map<Object?, Object?>;
+      if (map['taskId'] != taskId) return;
+      if (map['type'] == 'progress') {
+        final progress = DownloadProgress.fromMap(map.cast<String, dynamic>());
+        progressController.add(progress);
+      } else if (map['type'] == 'state') {
+        final state = DownloadState.values[map['state'] as int];
+        stateController.add(state);
+        if (state == DownloadState.completed ||
+            state == DownloadState.failed ||
+            state == DownloadState.canceled) {
+          progressController.close();
+          stateController.close();
+          subscription.cancel();
+        }
+      }
+    });
+
+    Future<void> cancelDownload() async {
+      try {
+        _logger.info('Canceling download task $taskId');
+        await _channel.invokeMethod('cancelDownload', {'taskId': taskId});
+        progressController
+            .add(DownloadProgress(downloadedBytes: 0, totalBytes: 0));
+        stateController.add(DownloadState.canceled);
+        await subscription.cancel();
+      } on PlatformException catch (e) {
+        _logger.severe('Failed to cancel download task $taskId: ${e.message}');
+        rethrow;
+      }
+    }
+
+    return DownloadTask(
+      taskId: taskId,
+      progressStream: progressController.stream,
+      stateStream: stateController.stream,
+      cancel: cancelDownload,
+    );
+  }
+
+  static String _formatToLogString(Map<Object?, Object?> format) {
+    if (format['type'] == 'merge') {
+      return MergeFormat.fromMap(format).toLogString();
+    } else if (format['type'] == 'combined') {
+      return CombinedFormat.fromMap(format).toLogString();
+    }
+    return Format.fromMap(format).toLogString();
   }
 }

@@ -5,6 +5,7 @@ All notable changes to the `flutter_yt_dlp` plugin will be documented in this fi
 ## 0.1.0 - 2025-03-12
 
 ### Initial Release
+
 - **Added**: Support for fetching media formats using `yt-dlp`:
   - Raw video with sound formats (`getAllRawVideoWithSoundFormats`).
   - Video and audio formats for merging (`getRawVideoAndAudioFormatsForMerge`).
