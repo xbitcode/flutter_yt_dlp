@@ -2,9 +2,16 @@
 
 All notable changes to the `flutter_yt_dlp` plugin will be documented in this file.
 
+## 0.1.1 - 2025-03-12
+
+### Added
+
+- **Cancel Download Refinement**: Enhanced the `DownloadTask.cancel()` method with better stream cleanup and state management, ensuring robust cancellation of ongoing downloads.
+
 ## 0.1.0 - 2025-03-12
 
 ### Initial Release
+
 - **Added**: Support for fetching media formats using `yt-dlp`:
   - Raw video with sound formats (`getAllRawVideoWithSoundFormats`).
   - Video and audio formats for merging (`getRawVideoAndAudioFormatsForMerge`).
