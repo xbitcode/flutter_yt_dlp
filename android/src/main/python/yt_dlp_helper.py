@@ -1,3 +1,4 @@
+# C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\android\src\main\python\yt_dlp_helper.py
 import yt_dlp
 import json
 import os
@@ -6,7 +7,6 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 def _extract_format_info(f):
     return {
@@ -20,7 +20,6 @@ def _extract_format_info(f):
         "bitrate": int(f.get("tbr", 0)),
         "size": int(f.get("filesize", 0) or f.get("filesize_approx", 0) or 0),
     }
-
 
 def get_all_raw_video_with_sound_formats(url):
     ydl_opts = {"quiet": True}
@@ -41,7 +40,6 @@ def get_all_raw_video_with_sound_formats(url):
     except Exception as e:
         logger.error(f"Error fetching raw video+sound formats for {url}: {str(e)}")
         return json.dumps([])
-
 
 def get_raw_video_and_audio_formats_for_merge(url):
     ydl_opts = {"quiet": True}
@@ -83,7 +81,6 @@ def get_raw_video_and_audio_formats_for_merge(url):
         logger.error(f"Error fetching merge formats for {url}: {str(e)}")
         return json.dumps([])
 
-
 def get_non_mp4_video_with_sound_formats_for_conversion(url):
     ydl_opts = {"quiet": True}
     try:
@@ -105,7 +102,6 @@ def get_non_mp4_video_with_sound_formats_for_conversion(url):
         logger.error(f"Error fetching non-MP4 video+sound formats for {url}: {str(e)}")
         return json.dumps([])
 
-
 def get_all_raw_audio_only_formats(url):
     ydl_opts = {"quiet": True}
     try:
@@ -125,7 +121,6 @@ def get_all_raw_audio_only_formats(url):
     except Exception as e:
         logger.error(f"Error fetching raw audio-only formats for {url}: {str(e)}")
         return json.dumps([])
-
 
 def get_non_mp3_audio_only_formats_for_conversion(url):
     ydl_opts = {"quiet": True}
@@ -148,6 +143,20 @@ def get_non_mp3_audio_only_formats_for_conversion(url):
         logger.error(f"Error fetching non-MP3 audio-only formats for {url}: {str(e)}")
         return json.dumps([])
 
+def get_thumbnail_url(url):
+    ydl_opts = {"quiet": True}
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            thumbnail = info.get("thumbnail", None)
+            if not thumbnail:
+                logger.warning(f"No thumbnail found for {url}")
+                return None
+            logger.info(f"Thumbnail URL for {url}: {thumbnail}")
+            return thumbnail
+    except Exception as e:
+        logger.error(f"Error fetching thumbnail for {url}: {str(e)}")
+        return None
 
 def download_format(url, format_id, output_path, overwrite, progress_callback):
     def hook(d):

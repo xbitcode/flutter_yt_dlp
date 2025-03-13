@@ -1,3 +1,4 @@
+// C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\android\src\main\kotlin\com\example\flutter_yt_dlp\FlutterYtDlpPlugin.kt
 package com.example.flutter_yt_dlp
 
 import android.os.Handler
@@ -47,6 +48,7 @@ class FlutterYtDlpPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Event
                 "getNonMp3AudioOnlyFormatsForConversion" -> fetchFormats(call, result, module, "get_non_mp3_audio_only_formats_for_conversion", true)
                 "startDownload" -> startDownloadTask(call, result)
                 "cancelDownload" -> cancelDownloadTask(call, result)
+                "getThumbnailUrl" -> fetchThumbnailUrl(call, result, module)
                 else -> result.notImplemented()
             }
         } catch (e: Exception) {
@@ -93,6 +95,14 @@ class FlutterYtDlpPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Event
         }
         Log.i(TAG, "Fetched ${formats.size} formats")
         result.success(formats)
+    }
+
+    private fun fetchThumbnailUrl(call: MethodCall, result: MethodChannel.Result, module: com.chaquo.python.PyObject) {
+        val url = call.argument<String>("url")!!
+        Log.i(TAG, "Fetching thumbnail URL for: $url")
+        val thumbnailUrl = module.callAttr("get_thumbnail_url", url).toString()
+        Log.i(TAG, "Thumbnail URL fetched: $thumbnailUrl")
+        result.success(thumbnailUrl)
     }
 
     private fun parseJsonList(json: String): List<Map<String, Any>> {

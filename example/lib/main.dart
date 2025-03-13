@@ -1,6 +1,6 @@
+// C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\lib\main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_yt_dlp/flutter_yt_dlp.dart';
-import 'package:flutter_yt_dlp/models.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -13,14 +13,14 @@ class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
-  MyAppState createState() =>
-      MyAppState(); // Changed from _MyAppState to MyAppState
+  MyAppState createState() => MyAppState();
 }
 
 class MyAppState extends State<MyApp> {
   String status = "Idle";
   double progress = 0.0;
   DownloadTask? currentTask;
+  String? thumbnailUrl;
 
   Future<String> _getOutputDir() async {
     final directory = await getExternalStorageDirectory();
@@ -29,6 +29,11 @@ class MyAppState extends State<MyApp> {
 
   Future<bool> _requestStoragePermission() async {
     return await Permission.storage.request().isGranted;
+  }
+
+  Future<void> _fetchThumbnail(String url) async {
+    final urlResult = await FlutterYtDlpPlugin.getThumbnailUrl(url);
+    setState(() => thumbnailUrl = urlResult);
   }
 
   Future<void> _startDownload<T>({
@@ -72,7 +77,7 @@ class MyAppState extends State<MyApp> {
 
     task.stateStream.listen((s) {
       setState(() {
-        status = "$label: ${s.name}";
+        status = "$label: ${s.name} - File: ${task.outputPath}";
         if (s == DownloadState.completed ||
             s == DownloadState.canceled ||
             s == DownloadState.failed) {
@@ -107,75 +112,94 @@ class MyAppState extends State<MyApp> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _fetchThumbnail("https://youtu.be/l2Uoid2eqII?si=W9xgTB9bfRK5ss6V");
+  }
+
+  @override
   Widget build(BuildContext context) {
-    const url = "https://youtu.be/mONMvRWwBog?si=OhluxabejVGZXlfX";
+    const url = "https://youtu.be/l2Uoid2eqII?si=W9xgTB9bfRK5ss6V";
     const originalName = "RickRoll";
 
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(title: const Text('FlutterYtDlp Demo')),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(status),
-              const SizedBox(height: 20),
-              LinearProgressIndicator(value: progress),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => _startDownload<CombinedFormat>(
-                  url: url,
-                  originalName: originalName,
-                  fetchFormats:
-                      FlutterYtDlpPlugin.getAllRawVideoWithSoundFormats,
-                  label: "Raw Video+Sound",
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (thumbnailUrl != null)
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Image.network(
+                      thumbnailUrl!,
+                      height: 100,
+                      width: 100,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Text("Failed to load thumbnail"),
+                    ),
+                  ),
+                Text(status),
+                const SizedBox(height: 20),
+                LinearProgressIndicator(value: progress),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => _startDownload<CombinedFormat>(
+                    url: url,
+                    originalName: originalName,
+                    fetchFormats:
+                        FlutterYtDlpPlugin.getAllRawVideoWithSoundFormats,
+                    label: "Raw Video+Sound",
+                  ),
+                  child: const Text("Download Raw Video+Sound"),
                 ),
-                child: const Text("Download Raw Video+Sound"),
-              ),
-              ElevatedButton(
-                onPressed: () => _startDownload<MergeFormat>(
-                  url: url,
-                  originalName: originalName,
-                  fetchFormats:
-                      FlutterYtDlpPlugin.getRawVideoAndAudioFormatsForMerge,
-                  label: "Merge Video+Audio",
+                ElevatedButton(
+                  onPressed: () => _startDownload<MergeFormat>(
+                    url: url,
+                    originalName: originalName,
+                    fetchFormats:
+                        FlutterYtDlpPlugin.getRawVideoAndAudioFormatsForMerge,
+                    label: "Merge Video+Audio",
+                  ),
+                  child: const Text("Download Merge Video+Audio"),
                 ),
-                child: const Text("Download Merge Video+Audio"),
-              ),
-              ElevatedButton(
-                onPressed: () => _startDownload<CombinedFormat>(
-                  url: url,
-                  originalName: originalName,
-                  fetchFormats: FlutterYtDlpPlugin
-                      .getNonMp4VideoWithSoundFormatsForConversion,
-                  label: "Convert Video+Sound",
+                ElevatedButton(
+                  onPressed: () => _startDownload<CombinedFormat>(
+                    url: url,
+                    originalName: originalName,
+                    fetchFormats: FlutterYtDlpPlugin
+                        .getNonMp4VideoWithSoundFormatsForConversion,
+                    label: "Convert Video+Sound",
+                  ),
+                  child: const Text("Download Convert Video+Sound"),
                 ),
-                child: const Text("Download Convert Video+Sound"),
-              ),
-              ElevatedButton(
-                onPressed: () => _startDownload<Format>(
-                  url: url,
-                  originalName: originalName,
-                  fetchFormats: FlutterYtDlpPlugin.getAllRawAudioOnlyFormats,
-                  label: "Raw Audio",
+                ElevatedButton(
+                  onPressed: () => _startDownload<Format>(
+                    url: url,
+                    originalName: originalName,
+                    fetchFormats: FlutterYtDlpPlugin.getAllRawAudioOnlyFormats,
+                    label: "Raw Audio",
+                  ),
+                  child: const Text("Download Raw Audio"),
                 ),
-                child: const Text("Download Raw Audio"),
-              ),
-              ElevatedButton(
-                onPressed: () => _startDownload<Format>(
-                  url: url,
-                  originalName: originalName,
-                  fetchFormats:
-                      FlutterYtDlpPlugin.getNonMp3AudioOnlyFormatsForConversion,
-                  label: "Convert Audio",
+                ElevatedButton(
+                  onPressed: () => _startDownload<Format>(
+                    url: url,
+                    originalName: originalName,
+                    fetchFormats: FlutterYtDlpPlugin
+                        .getNonMp3AudioOnlyFormatsForConversion,
+                    label: "Convert Audio",
+                  ),
+                  child: const Text("Download Convert Audio"),
                 ),
-                child: const Text("Download Convert Audio"),
-              ),
-              ElevatedButton(
-                onPressed: currentTask != null ? _cancelDownload : null,
-                child: const Text("Cancel Download"),
-              ),
-            ],
+                ElevatedButton(
+                  onPressed: currentTask != null ? _cancelDownload : null,
+                  child: const Text("Cancel Download"),
+                ),
+              ],
+            ),
           ),
         ),
       ),

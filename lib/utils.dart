@@ -1,3 +1,4 @@
+// C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\lib\utils.dart
 import 'package:logging/logging.dart';
 import 'models.dart';
 
@@ -11,20 +12,31 @@ void setupLogging() {
   });
 }
 
-/// Generates an output file path based on the format type.
+/// Generates a complete output file path with extension based on the format type.
 String generateOutputPath(
     dynamic format, String outputDir, String originalName) {
   final cleanName = originalName.replaceAll(RegExp(r'[^\w\s-]'), '').trim();
+  String filePath;
+
   if (format is MergeFormat) {
-    return "$outputDir/${cleanName}_${format.video.resolution ?? 'unknown'}_${format.audio.bitrate}kbps.mp4";
+    filePath =
+        "$outputDir/${cleanName}_${format.video.resolution ?? 'unknown'}_${format.audio.bitrate}kbps.mp4";
   } else if (format is CombinedFormat) {
     final ext = format.needsConversion ? 'mp4' : (format.ext ?? 'unknown');
-    return "$outputDir/${cleanName}_${format.resolution ?? 'unknown'}_${format.bitrate}kbps.$ext";
+    filePath =
+        "$outputDir/${cleanName}_${format.resolution ?? 'unknown'}_${format.bitrate}kbps.$ext";
   } else if (format is Format) {
-    final ext = (format.ext != 'mp3') ? 'mp3' : (format.ext ?? 'unknown');
-    return "$outputDir/${cleanName}_${format.resolution ?? 'unknown'}_${format.bitrate}kbps.$ext";
+    final ext = format.ext == 'mp3'
+        ? 'mp3'
+        : 'mp3'; // Always MP3 for audio if conversion needed
+    filePath =
+        "$outputDir/${cleanName}_${format.resolution ?? 'unknown'}_${format.bitrate}kbps.$ext";
+  } else {
+    throw ArgumentError('Unsupported format type');
   }
-  throw ArgumentError('Unsupported format type');
+
+  _logger.info('Generated output path: $filePath');
+  return filePath;
 }
 
 /// Converts a format object to a map for serialization.

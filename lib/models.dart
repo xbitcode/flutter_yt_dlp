@@ -1,3 +1,4 @@
+// C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\lib\models.dart
 import 'dart:async';
 
 /// Base class representing a media format with metadata.
@@ -185,11 +186,15 @@ class DownloadTask {
   /// Cancels the download task and cleans up resources.
   final Future<void> Function() cancel;
 
+  /// The full path where the downloaded file will be saved.
+  final String outputPath;
+
   /// Creates a new [DownloadTask] instance.
   DownloadTask({
     required this.taskId,
     required this.progressStream,
     required this.stateStream,
     required this.cancel,
+    required this.outputPath,
   });
 }

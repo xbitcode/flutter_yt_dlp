@@ -1,3 +1,7 @@
+// C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\lib\flutter_yt_dlp.dart
+export 'models.dart'; // Export all public classes and enums from models.dart
+export 'utils.dart'; // Export all public functions from utils.dart
+
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
@@ -6,7 +10,7 @@ import 'utils.dart';
 
 /// Main plugin class for interacting with yt-dlp and FFmpeg.
 ///
-/// Provides methods to fetch media formats and initiate downloads with progress
+/// Provides methods to fetch media formats, thumbnails, and initiate downloads with progress
 /// and state tracking.
 class FlutterYtDlpPlugin {
   static const MethodChannel _channel = MethodChannel('flutter_yt_dlp');
@@ -77,6 +81,21 @@ class FlutterYtDlpPlugin {
     return [...rawAudio, ...convertAudio];
   }
 
+  /// Fetches the thumbnail URL for a given video URL.
+  static Future<String?> getThumbnailUrl(String url) async {
+    try {
+      _logger.info('Fetching thumbnail URL for: $url');
+      final result =
+          await _channel.invokeMethod('getThumbnailUrl', {'url': url});
+      final thumbnailUrl = result as String?;
+      _logger.info('Thumbnail URL fetched: $thumbnailUrl');
+      return thumbnailUrl;
+    } on PlatformException catch (e) {
+      _logger.severe('Error fetching thumbnail URL: ${e.message}');
+      return null;
+    }
+  }
+
   /// Initiates a download task for a specified format.
   static Future<DownloadTask> download({
     required dynamic format,
@@ -88,7 +107,7 @@ class FlutterYtDlpPlugin {
     final outputPath = generateOutputPath(format, outputDir, originalName);
     final formatMap = convertFormatToMap(format);
     final taskId = await _startDownload(formatMap, outputPath, url, overwrite);
-    return _createDownloadTask(taskId);
+    return _createDownloadTask(taskId, outputPath);
   }
 
   /// Formats a byte count into a human-readable string (e.g., '1.23 MB').
@@ -143,7 +162,7 @@ class FlutterYtDlpPlugin {
     }
   }
 
-  static DownloadTask _createDownloadTask(String taskId) {
+  static DownloadTask _createDownloadTask(String taskId, String outputPath) {
     final progressController = StreamController<DownloadProgress>.broadcast();
     final stateController = StreamController<DownloadState>.broadcast();
 
@@ -186,6 +205,7 @@ class FlutterYtDlpPlugin {
       progressStream: progressController.stream,
       stateStream: stateController.stream,
       cancel: cancelDownload,
+      outputPath: outputPath,
     );
   }
 }
