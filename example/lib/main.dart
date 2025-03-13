@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_yt_dlp/flutter_yt_dlp.dart';
+import 'package:flutter_yt_dlp/models.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -12,10 +13,11 @@ class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
-  _MyAppState createState() => _MyAppState();
+  MyAppState createState() =>
+      MyAppState(); // Changed from _MyAppState to MyAppState
 }
 
-class _MyAppState extends State<MyApp> {
+class MyAppState extends State<MyApp> {
   String status = "Idle";
   double progress = 0.0;
   DownloadTask? currentTask;
@@ -106,7 +108,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    const url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const url = "https://youtu.be/mONMvRWwBog?si=OhluxabejVGZXlfX";
     const originalName = "RickRoll";
 
     return MaterialApp(

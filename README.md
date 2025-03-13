@@ -9,6 +9,8 @@ A Flutter plugin for downloading and processing media using `yt-dlp` and FFmpeg,
 - **Conversion**: Convert non-MP4 video formats to MP4 and non-MP3 audio formats to MP3.
 - **Progress Monitoring**: Real-time updates on download progress and state.
 - **Cancel Downloads**: Cancel ongoing downloads with `DownloadTask.cancel()`.
+- **Byte Formatting**: Convert byte sizes to human-readable strings with `formatBytes`.
+- **Modular Design**: Code organized into `models.dart`, `utils.dart`, and `flutter_yt_dlp.dart` for maintainability.
 
 ## Platform Support
 
@@ -21,7 +23,7 @@ Add the plugin to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_yt_dlp: ^0.1.1
+  flutter_yt_dlp: ^0.1.3
 ```
 
 Run `flutter pub get` to install it.
@@ -98,6 +100,7 @@ final task = await FlutterYtDlpPlugin.download(
 
 task.progressStream.listen((progress) {
   print("Progress: ${(progress.percentage * 100).toStringAsFixed(1)}%");
+  print("Downloaded: ${FlutterYtDlpPlugin.formatBytes(progress.downloadedBytes)}");
 });
 
 task.stateStream.listen((state) {
@@ -109,6 +112,13 @@ task.stateStream.listen((state) {
 
 ```dart
 await task.cancel();
+```
+
+### Format Bytes
+
+```dart
+final sizeInBytes = 1234567;
+final readableSize = FlutterYtDlpPlugin.formatBytes(sizeInBytes); // e.g., "1.18 MB"
 ```
 
 ## Format Types

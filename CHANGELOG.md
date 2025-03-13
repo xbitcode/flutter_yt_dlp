@@ -2,19 +2,49 @@
 
 All notable changes to the `flutter_yt_dlp` plugin will be documented in this file.
 
-## 0.1.2 - 2025-03-13
+## [0.1.3] - 2025-03-13
+
+### Added
+
+- Split `flutter_yt_dlp.dart` into three files for improved maintainability:
+  - `models.dart`: Contains data classes (`Format`, `CombinedFormat`, `MergeFormat`, `DownloadProgress`, `DownloadState`, `DownloadTask`).
+  - `utils.dart`: Contains utility functions (`setupLogging`, `generateOutputPath`, `convertFormatToMap`).
+  - `flutter_yt_dlp.dart`: Main plugin class with core functionality, including `formatBytes`.
+- Added comprehensive Dartdoc comments to public APIs to address `public_member_api_docs` lint warnings.
+- Exposed `formatBytes` as a public method in `FlutterYtDlpPlugin` for formatting byte sizes in a human-readable format.
+
+### Changed
+
+- Updated `toLogString` methods in `models.dart` to use `String Function(int)` syntax for better type safety.
+- Adjusted imports in `main.dart` to reflect the new modular file structure.
+- Improved logging in `_fetchFormats` to use a ternary operator for format type checking.
+- Renamed `_MyAppState` to `MyAppState` in `main.dart` to resolve `library_private_types_in_public_api`.
+
+### Fixed
+
+- Resolved `undefined_method: formatBytes` errors in `main.dart` by making `formatBytes` a public method in `FlutterYtDlpPlugin`.
+- Fixed `undefined_identifier` errors in `utils.dart` by adding `import 'models.dart'`.
+- Replaced `print` with logging in `setupLogging` to fix `avoid_print` lint warning.
+- Corrected `forEach` usage in `_fetchFormats` to a `for` loop to address `avoid_function_literals_in_foreach_calls`.
+
+### Notes
+
+- File sizes are kept under 100 lines each, with functions averaging around 3 lines, adhering to clean code principles.
+- Some `public_member_api_docs` warnings remain but are informational (severity 2).
+
+## [0.1.2] - 2025-03-13
 
 ### Changed
 
 - Removed unnecessary comments for cleaner and more maintainable code.
 
-## 0.1.1 - 2025-03-12
+## [0.1.1] - 2025-03-12
 
 ### Added
 
 - **Cancel Download Refinement**: Enhanced the `DownloadTask.cancel()` method with better stream cleanup and state management, ensuring robust cancellation of ongoing downloads.
 
-## 0.1.0 - 2025-03-12
+## [0.1.0] - 2025-03-12
 
 ### Initial Release
 
@@ -37,6 +67,6 @@ All notable changes to the `flutter_yt_dlp` plugin will be documented in this fi
 - **Dependencies**: Integrated `yt-dlp` (2025.2.19) and FFmpeg (6.0) via Chaquopy.
 - **Developed**: With assistance from Grok by xAI for design and implementation.
 
-## 0.0.1
+## [0.0.1]
 
 - Placeholder for initial development version (not released).
