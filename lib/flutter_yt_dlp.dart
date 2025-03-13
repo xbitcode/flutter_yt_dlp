@@ -16,8 +16,12 @@ class FlutterYtDlpPlugin {
 
   /// Initializes the plugin with logging setup.
   static void initialize() {
-    setupLogging();
-    _logger.info('FlutterYtDlpPlugin initialized');
+    try {
+      setupLogging();
+      print('FlutterYtDlpPlugin initialized');
+    } catch (e) {
+      print('Error in FlutterYtDlpPlugin initialization: $e');
+    }
   }
 
   /// Fetches all raw video formats with sound for a given URL.

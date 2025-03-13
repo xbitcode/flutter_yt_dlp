@@ -23,7 +23,7 @@ Add the plugin to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_yt_dlp: ^0.1.3
+  flutter_yt_dlp: ^0.1.4
 ```
 
 Run `flutter pub get` to install it.
@@ -48,6 +48,8 @@ dependencies:
 ```
 
 **Minimum SDK**: Ensure `minSdk` is set to 24 or higher in `android/app/build.gradle`.
+
+**NDK ABI Filters**: Updated to support `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64` for broader device compatibility.
 
 ## Usage
 
@@ -141,7 +143,8 @@ See the `example/` directory for a sample app with a UI demonstrating downloads 
 
 - **Permission Denied**: Ensure permissions are granted.
 - **No Formats Found**: Check URL validity.
-- **Download Fails**: Enable logging with `initialize()` and check logs.
+- **Download Fails**: Enable logging with `initialize()` and check logs for errors.
+- **Initialization Errors**: Check console output for initialization exceptions.
 
 ## Credits
 

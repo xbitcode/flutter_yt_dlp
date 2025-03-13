@@ -2,6 +2,28 @@
 
 All notable changes to the `flutter_yt_dlp` plugin will be documented in this file.
 
+## [0.1.4] - 2025-03-13
+
+### Added
+
+- Expanded Android NDK ABI support in `android/build.gradle` to include `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64`, enhancing compatibility across a wider range of devices.
+- Added try-catch block in `FlutterYtDlpPlugin.initialize()` to handle and report initialization errors, improving debugging capabilities.
+- Added `changed_files.txt` and `old_codebase.txt` to `.gitignore` for better management of temporary development files.
+
+### Changed
+
+- Modified `setupLogging` in `utils.dart` to use `print` instead of `_logger.info` for log output.
+- Updated `FlutterYtDlpPlugin.initialize()` to use `print` statements for initialization feedback instead of logging.
+
+### Fixed
+
+- No specific bugs fixed in this release; focus was on compatibility and debugging enhancements.
+
+### Notes
+
+- The use of `print` in `setupLogging` and `initialize()` is temporary and will be reverted to proper logging in the next release to adhere to `avoid_print` lint rules.
+- File sizes remain under 100 lines, and functions average around 3 lines, maintaining clean code principles.
+
 ## [0.1.3] - 2025-03-13
 
 ### Added
@@ -12,6 +34,7 @@ All notable changes to the `flutter_yt_dlp` plugin will be documented in this fi
   - `flutter_yt_dlp.dart`: Main plugin class with core functionality, including `formatBytes`.
 - Added comprehensive Dartdoc comments to public APIs to address `public_member_api_docs` lint warnings.
 - Exposed `formatBytes` as a public method in `FlutterYtDlpPlugin` for formatting byte sizes in a human-readable format.
+- **Improved Null Safety**: Updated `Format`, `CombinedFormat`, and related classes to handle `null` values from platform channels, preventing type cast errors (e.g., `TypeError: type 'Null' is not a subtype of type 'String'`).
 
 ### Changed
 

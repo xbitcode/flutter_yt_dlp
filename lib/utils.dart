@@ -7,7 +7,7 @@ final Logger _logger = Logger('FlutterYtDlpPlugin');
 void setupLogging() {
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
-    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
+    print('${record.level.name}: ${record.time}: ${record.message}');
   });
 }
 
