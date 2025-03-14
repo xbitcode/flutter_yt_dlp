@@ -90,11 +90,23 @@ class FlutterYtDlpPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, Event
         val url = call.argument<String>("url")!!
         Log.i(TAG, "Fetching formats with method: $methodName for URL: $url")
         val formatsJson = module.callAttr(methodName, url).toString()
-        val formats = parseJsonList(formatsJson).map { map ->
-            map.toMutableMap().apply { if (needsConversion != null) put("needsConversion", needsConversion) }
-        }
-        Log.i(TAG, "Fetched ${formats.size} formats")
+        val formats = processFetchedFormats(formatsJson, needsConversion)
+        logFetchedFormats(formats, methodName, url)
         result.success(formats)
+    }
+
+    private fun processFetchedFormats(json: String, needsConversion: Boolean?): List<Map<String, Any>> {
+        val parsedFormats = parseJsonList(json)
+        return parsedFormats.map { formatMap ->
+            formatMap.toMutableMap().apply { needsConversion?.let { put("needsConversion", it) } }
+        }
+    }
+
+    private fun logFetchedFormats(formats: List<Map<String, Any>>, methodName: String, url: String) {
+        Log.i(TAG, "Fetched ${formats.size} formats for $methodName (URL: $url):")
+        formats.forEachIndexed { index, format ->
+            Log.i(TAG, "Format[$index]: $format")
+        }
     }
 
     private fun fetchThumbnailUrl(call: MethodCall, result: MethodChannel.Result, module: com.chaquo.python.PyObject) {

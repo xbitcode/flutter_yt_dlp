@@ -1,23 +1,17 @@
-export 'models.dart'; // Export all public classes and enums from models.dart
-export 'utils.dart'; // Export all public functions from utils.dart
-
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'models.dart';
 import 'utils.dart';
 
-/// Main plugin class for interacting with yt-dlp and FFmpeg.
-///
-/// Provides methods to fetch media formats, thumbnails, and initiate downloads with progress
-/// and state tracking.
+/// A Flutter plugin for downloading and processing media using yt-dlp and FFmpeg.
 class FlutterYtDlpPlugin {
   static const MethodChannel _channel = MethodChannel('flutter_yt_dlp');
   static const EventChannel _eventChannel =
       EventChannel('flutter_yt_dlp/events');
   static final Logger _logger = Logger('FlutterYtDlpPlugin');
 
-  /// Initializes the plugin with logging setup.
+  /// Initializes the plugin by setting up logging.
   static void initialize() {
     try {
       setupLogging();
@@ -27,44 +21,67 @@ class FlutterYtDlpPlugin {
     }
   }
 
-  /// Fetches all raw video formats with sound for a given URL.
+  /// Fetches all raw video formats with sound.
   static Future<List<CombinedFormat>> getAllRawVideoWithSoundFormats(
       String url) async {
     final result = await _fetchFormats('getAllRawVideoWithSoundFormats', url);
-    return result.map((e) => CombinedFormat.fromMap(e)).toList();
+    return result
+        .where((e) => e['type'] == 'combined' || e['needsConversion'] != null)
+        .map((e) => CombinedFormat.fromMap(e))
+        .toList();
   }
 
-  /// Fetches raw video and audio formats suitable for merging.
+  /// Fetches raw video and audio formats for merging.
   static Future<List<MergeFormat>> getRawVideoAndAudioFormatsForMerge(
       String url) async {
     final result =
         await _fetchFormats('getRawVideoAndAudioFormatsForMerge', url);
-    return result.map((e) => MergeFormat.fromMap(e)).toList();
+    _logger.info('Processing ${result.length} formats for merge');
+    final mergeFormats = result
+        .where((e) =>
+            e.containsKey('video') &&
+            e.containsKey('audio')) // Check for video and audio keys
+        .map((e) {
+      final castedMap = e.cast<String, dynamic>();
+      _logger.info('Casted map: $castedMap');
+      return MergeFormat.fromMap(castedMap);
+    }).toList();
+    _logger.info('Returning ${mergeFormats.length} merge formats');
+    return mergeFormats;
   }
 
-  /// Fetches non-MP4 video formats with sound for conversion to MP4.
+  /// Fetches non-MP4 video with sound formats for conversion.
   static Future<List<CombinedFormat>>
       getNonMp4VideoWithSoundFormatsForConversion(String url) async {
     final result =
         await _fetchFormats('getNonMp4VideoWithSoundFormatsForConversion', url);
-    return result.map((e) => CombinedFormat.fromMap(e)).toList();
+    return result
+        .where((e) => e['type'] == 'combined' || e['needsConversion'] != null)
+        .map((e) => CombinedFormat.fromMap(e))
+        .toList();
   }
 
-  /// Fetches all raw audio-only formats for a given URL.
+  /// Fetches all raw audio-only formats.
   static Future<List<Format>> getAllRawAudioOnlyFormats(String url) async {
     final result = await _fetchFormats('getAllRawAudioOnlyFormats', url);
-    return result.map((e) => Format.fromMap(e)).toList();
+    return result
+        .where((e) => e['type'] != 'merge' && e['needsConversion'] == null)
+        .map((e) => Format.fromMap(e))
+        .toList();
   }
 
-  /// Fetches non-MP3 audio-only formats for conversion to MP3.
+  /// Fetches non-MP3 audio-only formats for conversion.
   static Future<List<Format>> getNonMp3AudioOnlyFormatsForConversion(
       String url) async {
     final result =
         await _fetchFormats('getNonMp3AudioOnlyFormatsForConversion', url);
-    return result.map((e) => Format.fromMap(e)).toList();
+    return result
+        .where((e) => e['type'] != 'merge' && e['needsConversion'] == null)
+        .map((e) => Format.fromMap(e))
+        .toList();
   }
 
-  /// Fetches all available video with sound formats (raw, merge, and conversion).
+  /// Fetches all video with sound formats (raw, merge, and convertible).
   static Future<List<dynamic>> getAllVideoWithSoundFormats(String url) async {
     final rawCombined = await getAllRawVideoWithSoundFormats(url);
     final mergeFormats = await getRawVideoAndAudioFormatsForMerge(url);
@@ -73,14 +90,14 @@ class FlutterYtDlpPlugin {
     return [...rawCombined, ...mergeFormats, ...convertFormats];
   }
 
-  /// Fetches all available audio-only formats (raw and conversion).
+  /// Fetches all audio-only formats (raw and convertible).
   static Future<List<Format>> getAllAudioOnlyFormats(String url) async {
     final rawAudio = await getAllRawAudioOnlyFormats(url);
     final convertAudio = await getNonMp3AudioOnlyFormatsForConversion(url);
     return [...rawAudio, ...convertAudio];
   }
 
-  /// Fetches the thumbnail URL for a given video URL.
+  /// Retrieves the thumbnail URL for a given video URL.
   static Future<String?> getThumbnailUrl(String url) async {
     try {
       _logger.info('Fetching thumbnail URL for: $url');
@@ -95,7 +112,7 @@ class FlutterYtDlpPlugin {
     }
   }
 
-  /// Initiates a download task for a specified format.
+  /// Starts a download task with the specified format and parameters.
   static Future<DownloadTask> download({
     required dynamic format,
     required String outputDir,
@@ -109,7 +126,7 @@ class FlutterYtDlpPlugin {
     return _createDownloadTask(taskId, outputPath);
   }
 
-  /// Formats a byte count into a human-readable string (e.g., '1.23 MB').
+  /// Formats a byte size into a human-readable string (e.g., "734.01 KB").
   static String formatBytes(int bytes) {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     double size = bytes.toDouble();
@@ -121,18 +138,31 @@ class FlutterYtDlpPlugin {
     return '${size.toStringAsFixed(2)} ${units[unitIndex]}';
   }
 
-  static Future<List<dynamic>> _fetchFormats(String method, String url) async {
+  /// Internal method to fetch formats from the native side.
+  static Future<List<Map<String, dynamic>>> _fetchFormats(
+      String method, String url) async {
     try {
       _logger.info('Fetching $method for URL: $url');
       final result = await _channel.invokeMethod(method, {'url': url});
-      final formats = (result as List<dynamic>).cast<Map<Object?, Object?>>();
+      final formats = (result as List<dynamic>)
+          .map((e) => (e as Map<dynamic, dynamic>).cast<String, dynamic>())
+          .toList();
       _logger.info('Fetched ${formats.length} formats');
-      for (var f in formats) {
-        _logger.info(f['type'] == 'merge'
-            ? MergeFormat.fromMap(f).toLogString(formatBytes)
-            : f['type'] == 'combined'
-                ? CombinedFormat.fromMap(f).toLogString(formatBytes)
-                : Format.fromMap(f).toLogString(formatBytes));
+      _logger.info('Raw format data: $formats');
+      for (var i = 0; i < formats.length; i++) {
+        final format = formats[i];
+        if (format.containsKey('video') && format.containsKey('audio')) {
+          final mergeFormat = MergeFormat.fromMap(format);
+          _logger.info('Format[$i]: ${mergeFormat.toLogString(formatBytes)}');
+        } else if (format['type'] == 'combined' ||
+            format.containsKey('needsConversion')) {
+          final combinedFormat = CombinedFormat.fromMap(format);
+          _logger
+              .info('Format[$i]: ${combinedFormat.toLogString(formatBytes)}');
+        } else {
+          final basicFormat = Format.fromMap(format);
+          _logger.info('Format[$i]: ${basicFormat.toLogString(formatBytes)}');
+        }
       }
       return formats;
     } on PlatformException catch (e) {
@@ -141,6 +171,7 @@ class FlutterYtDlpPlugin {
     }
   }
 
+  /// Internal method to start a download task.
   static Future<String> _startDownload(
     Map<String, dynamic> formatMap,
     String outputPath,
@@ -161,13 +192,14 @@ class FlutterYtDlpPlugin {
     }
   }
 
+  /// Internal method to create a download task with progress and state streams.
   static DownloadTask _createDownloadTask(String taskId, String outputPath) {
     final progressController = StreamController<DownloadProgress>.broadcast();
     final stateController = StreamController<DownloadState>.broadcast();
 
     late StreamSubscription subscription;
     subscription = _eventChannel.receiveBroadcastStream().listen((event) {
-      final map = event as Map<Object?, Object?>;
+      final map = event as Map<dynamic, dynamic>;
       if (map['taskId'] != taskId) return;
       if (map['type'] == 'progress') {
         progressController

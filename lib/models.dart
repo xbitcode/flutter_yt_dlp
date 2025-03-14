@@ -1,5 +1,5 @@
-// C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\lib\models.dart
 import 'dart:async';
+import 'package:logging/logging.dart'; // Add this import for logging
 
 /// Base class representing a media format with metadata.
 ///
@@ -7,22 +7,21 @@ import 'dart:async';
 /// resolution, bitrate, and size. Fields like [formatId], [ext], and [resolution]
 /// are nullable to handle cases where data might be missing from the source.
 class Format {
-  /// The unique identifier for the format, or null if unknown.
+  /// The unique identifier for the format.
   final String? formatId;
 
-  /// The file extension of the format (e.g., 'mp4', 'mp3'), or null if unknown.
+  /// The file extension of the format.
   final String? ext;
 
-  /// The resolution of the format (e.g., '1920x1080' or 'audio only'), or null if unknown.
+  /// The resolution of the format (e.g., "256x144" or "audio only").
   final String? resolution;
 
   /// The bitrate of the format in kilobits per second (kbps).
   final int bitrate;
 
-  /// The estimated file size in bytes.
+  /// The size of the format in bytes.
   final int size;
 
-  /// Creates a new [Format] instance.
   Format({
     this.formatId,
     this.ext,
@@ -40,8 +39,8 @@ class Format {
         'size': size,
       };
 
-  /// Creates a [Format] from a map, providing defaults for null values.
-  factory Format.fromMap(Map<Object?, Object?> map) => Format(
+  /// Creates a [Format] instance from a map.
+  factory Format.fromMap(Map<dynamic, dynamic> map) => Format(
         formatId: map['formatId'] as String? ?? 'unknown',
         ext: map['ext'] as String? ?? 'unknown',
         resolution: map['resolution'] as String? ?? 'unknown',
@@ -49,7 +48,7 @@ class Format {
         size: map['size'] as int? ?? 0,
       );
 
-  /// Returns a string representation for logging purposes.
+  /// Returns a string representation of the format for logging.
   String toLogString(String Function(int) formatBytes) =>
       'Format ID: ${formatId ?? "unknown"}, Ext: ${ext ?? "unknown"}, Resolution: ${resolution ?? "unknown"}, Bitrate: $bitrate kbps, Size: ${formatBytes(size)}';
 }
@@ -59,10 +58,9 @@ class Format {
 /// Extends [Format] to include a flag indicating whether the format needs
 /// conversion (e.g., to MP4).
 class CombinedFormat extends Format {
-  /// Indicates if this format requires conversion to a standard format (e.g., MP4).
+  /// Indicates if the format requires conversion.
   final bool needsConversion;
 
-  /// Creates a new [CombinedFormat] instance.
   CombinedFormat({
     super.formatId,
     super.ext,
@@ -79,8 +77,8 @@ class CombinedFormat extends Format {
         'type': 'combined',
       };
 
-  /// Creates a [CombinedFormat] from a map, providing defaults for null values.
-  factory CombinedFormat.fromMap(Map<Object?, Object?> map) => CombinedFormat(
+  /// Creates a [CombinedFormat] instance from a map.
+  factory CombinedFormat.fromMap(Map<dynamic, dynamic> map) => CombinedFormat(
         formatId: map['formatId'] as String? ?? 'unknown',
         ext: map['ext'] as String? ?? 'unknown',
         resolution: map['resolution'] as String? ?? 'unknown',
@@ -102,7 +100,9 @@ class MergeFormat {
   /// The audio format component.
   final Format audio;
 
-  /// Creates a new [MergeFormat] instance.
+  // Define logger here, matching the setup in flutter_yt_dlp.dart
+  static final Logger _logger = Logger('FlutterYtDlpPlugin');
+
   MergeFormat({required this.video, required this.audio});
 
   /// Converts the merge format to a map for serialization.
@@ -112,60 +112,55 @@ class MergeFormat {
         'type': 'merge',
       };
 
-  /// Creates a [MergeFormat] from a map.
-  factory MergeFormat.fromMap(Map<Object?, Object?> map) => MergeFormat(
-        video: Format.fromMap(map['video'] as Map<Object?, Object?>),
-        audio: Format.fromMap(map['audio'] as Map<Object?, Object?>),
-      );
+  /// Creates a [MergeFormat] instance from a map.
+  factory MergeFormat.fromMap(Map<dynamic, dynamic> map) {
+    _logger.info('Raw map input to MergeFormat: $map'); // Debug log
+    final videoMap =
+        (map['video'] as Map<dynamic, dynamic>?)?.cast<String, dynamic>() ?? {};
+    final audioMap =
+        (map['audio'] as Map<dynamic, dynamic>?)?.cast<String, dynamic>() ?? {};
+    _logger.info('Video map: $videoMap'); // Debug log
+    _logger.info('Audio map: $audioMap'); // Debug log
+    return MergeFormat(
+      video: Format.fromMap(videoMap),
+      audio: Format.fromMap(audioMap),
+    );
+  }
 
-  /// Returns a string representation for logging purposes.
+  /// Returns a string representation of the merge format for logging.
   String toLogString(String Function(int) formatBytes) =>
       'Video: ${video.toLogString(formatBytes)}, Audio: ${audio.toLogString(formatBytes)}';
 }
 
 /// Represents progress information for a download.
 class DownloadProgress {
-  /// The number of bytes downloaded so far.
+  /// The number of bytes downloaded.
   final int downloadedBytes;
 
   /// The total number of bytes to download.
   final int totalBytes;
 
-  /// Creates a new [DownloadProgress] instance.
   DownloadProgress({required this.downloadedBytes, required this.totalBytes});
 
-  /// Creates a [DownloadProgress] from a map, providing defaults for null values.
-  factory DownloadProgress.fromMap(Map<Object?, Object?> map) =>
+  /// Creates a [DownloadProgress] instance from a map.
+  factory DownloadProgress.fromMap(Map<dynamic, dynamic> map) =>
       DownloadProgress(
         downloadedBytes: map['downloaded'] as int? ?? 0,
         totalBytes: map['total'] as int? ?? 0,
       );
 
-  /// The percentage of the download completed (0.0 to 1.0).
+  /// Calculates the download progress percentage.
   double get percentage => totalBytes > 0 ? downloadedBytes / totalBytes : 0.0;
 }
 
 /// States a download task can be in.
 enum DownloadState {
-  /// Preparing to start the download.
   preparing,
-
-  /// Actively downloading the media.
   downloading,
-
-  /// Merging video and audio streams.
   merging,
-
-  /// Converting the media format.
   converting,
-
-  /// Download completed successfully.
   completed,
-
-  /// Download was canceled by the user.
   canceled,
-
-  /// Download failed due to an error.
   failed,
 }
 
@@ -174,22 +169,21 @@ enum DownloadState {
 /// Provides streams to monitor download progress and state, and a method to cancel
 /// the download.
 class DownloadTask {
-  /// The unique identifier for this download task.
+  /// The unique identifier for the download task.
   final String taskId;
 
-  /// Stream emitting progress updates as the download proceeds.
+  /// Stream of download progress updates.
   final Stream<DownloadProgress> progressStream;
 
-  /// Stream emitting state changes during the download process.
+  /// Stream of download state updates.
   final Stream<DownloadState> stateStream;
 
-  /// Cancels the download task and cleans up resources.
+  /// Function to cancel the download task.
   final Future<void> Function() cancel;
 
-  /// The full path where the downloaded file will be saved.
+  /// The output path where the downloaded file will be saved.
   final String outputPath;
 
-  /// Creates a new [DownloadTask] instance.
   DownloadTask({
     required this.taskId,
     required this.progressStream,
