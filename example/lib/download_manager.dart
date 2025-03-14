@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_yt_dlp/flutter_yt_dlp.dart';
-import 'package:flutter_yt_dlp/models.dart'; // Import models.dart for DownloadTask, DownloadState, Format, etc.
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path_provider/path_provider.dart';
 

@@ -1,3 +1,6 @@
+export 'models.dart';
+export 'utils.dart';
+
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
