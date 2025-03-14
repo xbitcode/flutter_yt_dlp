@@ -60,7 +60,7 @@ class MyAppState extends State<MyApp> {
       format: smallestFormat,
       outputDir: outputDir,
       url: url,
-      // originalName: originalName,
+      originalName: originalName,
       overwrite: true,
     );
 
