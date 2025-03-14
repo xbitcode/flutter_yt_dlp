@@ -1,6 +1,6 @@
 // C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\lib\flutter_yt_dlp.dart
-export 'models.dart'; // Export all public classes and enums from models.dart
-export 'utils.dart'; // Export all public functions from utils.dart
+export 'models.dart';
+export 'utils.dart';
 
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -8,17 +8,12 @@ import 'package:logging/logging.dart';
 import 'models.dart';
 import 'utils.dart';
 
-/// Main plugin class for interacting with yt-dlp and FFmpeg.
-///
-/// Provides methods to fetch media formats, thumbnails, and initiate downloads with progress
-/// and state tracking.
 class FlutterYtDlpPlugin {
   static const MethodChannel _channel = MethodChannel('flutter_yt_dlp');
   static const EventChannel _eventChannel =
       EventChannel('flutter_yt_dlp/events');
   static final Logger _logger = Logger('FlutterYtDlpPlugin');
 
-  /// Initializes the plugin with logging setup.
   static void initialize() {
     try {
       setupLogging();
@@ -28,14 +23,12 @@ class FlutterYtDlpPlugin {
     }
   }
 
-  /// Fetches all raw video formats with sound for a given URL.
   static Future<List<CombinedFormat>> getAllRawVideoWithSoundFormats(
       String url) async {
     final result = await _fetchFormats('getAllRawVideoWithSoundFormats', url);
     return result.map((e) => CombinedFormat.fromMap(e)).toList();
   }
 
-  /// Fetches raw video and audio formats suitable for merging.
   static Future<List<MergeFormat>> getRawVideoAndAudioFormatsForMerge(
       String url) async {
     final result =
@@ -43,7 +36,6 @@ class FlutterYtDlpPlugin {
     return result.map((e) => MergeFormat.fromMap(e)).toList();
   }
 
-  /// Fetches non-MP4 video formats with sound for conversion to MP4.
   static Future<List<CombinedFormat>>
       getNonMp4VideoWithSoundFormatsForConversion(String url) async {
     final result =
@@ -51,13 +43,11 @@ class FlutterYtDlpPlugin {
     return result.map((e) => CombinedFormat.fromMap(e)).toList();
   }
 
-  /// Fetches all raw audio-only formats for a given URL.
   static Future<List<Format>> getAllRawAudioOnlyFormats(String url) async {
     final result = await _fetchFormats('getAllRawAudioOnlyFormats', url);
     return result.map((e) => Format.fromMap(e)).toList();
   }
 
-  /// Fetches non-MP3 audio-only formats for conversion to MP3.
   static Future<List<Format>> getNonMp3AudioOnlyFormatsForConversion(
       String url) async {
     final result =
@@ -65,7 +55,6 @@ class FlutterYtDlpPlugin {
     return result.map((e) => Format.fromMap(e)).toList();
   }
 
-  /// Fetches all available video with sound formats (raw, merge, and conversion).
   static Future<List<dynamic>> getAllVideoWithSoundFormats(String url) async {
     final rawCombined = await getAllRawVideoWithSoundFormats(url);
     final mergeFormats = await getRawVideoAndAudioFormatsForMerge(url);
@@ -74,14 +63,12 @@ class FlutterYtDlpPlugin {
     return [...rawCombined, ...mergeFormats, ...convertFormats];
   }
 
-  /// Fetches all available audio-only formats (raw and conversion).
   static Future<List<Format>> getAllAudioOnlyFormats(String url) async {
     final rawAudio = await getAllRawAudioOnlyFormats(url);
     final convertAudio = await getNonMp3AudioOnlyFormatsForConversion(url);
     return [...rawAudio, ...convertAudio];
   }
 
-  /// Fetches the thumbnail URL for a given video URL.
   static Future<String?> getThumbnailUrl(String url) async {
     try {
       _logger.info('Fetching thumbnail URL for: $url');
@@ -96,21 +83,20 @@ class FlutterYtDlpPlugin {
     }
   }
 
-  /// Initiates a download task for a specified format.
+  /// Initiates a download task, letting the plugin determine the file name and extension.
   static Future<DownloadTask> download({
     required dynamic format,
     required String outputDir,
     required String url,
-    required String originalName,
     bool overwrite = false,
   }) async {
-    final outputPath = generateOutputPath(format, outputDir, originalName);
     final formatMap = convertFormatToMap(format);
-    final taskId = await _startDownload(formatMap, outputPath, url, overwrite);
-    return _createDownloadTask(taskId, outputPath);
+    final taskId = await _startDownload(formatMap, outputDir, url, overwrite);
+    final outputPath =
+        await _channel.invokeMethod('getOutputPath', {'taskId': taskId});
+    return _createDownloadTask(taskId, outputPath as String);
   }
 
-  /// Formats a byte count into a human-readable string (e.g., '1.23 MB').
   static String formatBytes(int bytes) {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     double size = bytes.toDouble();
@@ -144,15 +130,15 @@ class FlutterYtDlpPlugin {
 
   static Future<String> _startDownload(
     Map<String, dynamic> formatMap,
-    String outputPath,
+    String outputDir,
     String url,
     bool overwrite,
   ) async {
     try {
-      _logger.info('Starting download for URL: $url to $outputPath');
+      _logger.info('Starting download for URL: $url to directory: $outputDir');
       return await _channel.invokeMethod('startDownload', {
         'format': formatMap,
-        'outputPath': outputPath,
+        'outputDir': outputDir, // Changed from outputPath to outputDir
         'url': url,
         'overwrite': overwrite,
       }) as String;

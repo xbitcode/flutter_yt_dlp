@@ -1,4 +1,3 @@
-// C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\example\lib\main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_yt_dlp/flutter_yt_dlp.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -61,7 +60,7 @@ class MyAppState extends State<MyApp> {
       format: smallestFormat,
       outputDir: outputDir,
       url: url,
-      originalName: originalName,
+      // originalName: originalName,
       overwrite: true,
     );
 
