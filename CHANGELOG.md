@@ -2,6 +2,38 @@
 
 All notable changes to the `flutter_yt_dlp` plugin will be documented in this file.
 
+## [0.2.0] - 2025-03-14
+
+### Added
+
+- **API Refactor**: Replaced `FlutterYtDlpPlugin` with `FlutterYtDlpClient`, introducing an instance-based API:
+  - `getVideoInfo`: Unified method replacing specific format-fetching methods.
+  - `getThumbnailUrl`: New method for fetching thumbnails.
+  - `startDownload`: Simplified download method with task ID return.
+  - `cancelDownload`: Updated to use task IDs.
+  - `getDownloadEvents`: Stream-based event handling for progress and state.
+- **Format Categorization**: Added `format_categorizer.dart` to handle format categorization on the Dart side.
+- **Modular Android Backend**: Split Android logic into multiple Kotlin files (`ChannelManager.kt`, `DownloadManager.kt`, `DownloadProcessor.kt`, `DownloadState.kt`, `FileProcessor.kt`, `JsonParser.kt`, `MethodHandler.kt`, `ProgressTracker.kt`, `VideoInfoFetcher.kt`) for better separation of concerns.
+- **Enhanced Example App**: Added a fully functional example app with UI components (`app.dart`, `download_manager.dart`, `download_provider.dart`, `ui/download_controls.dart`, `ui/download_screen.dart`, `ui/format_selector.dart`, `ui/url_input.dart`), showcasing the new API, format selection (raw or converted), and download management.
+- **Raw vs. Converted Download Option**: Backend support for `downloadAsRaw`, allowing downloads in raw formats or converted to mp4 (video) or mp3 (audio-only), demonstrated in the example app.
+- **Video-Only and Audio-Only Merging**: Backend support for merging video-only and audio-only formats into mp4, enhancing format diversity.
+
+### Changed
+
+- **Breaking Change**: Refactored Dart API from static `FlutterYtDlpPlugin` methods to instance-based `FlutterYtDlpClient`, requiring users to update their code.
+- Updated `README.md` to reflect the new API, emphasize raw vs. converted downloads (mp4/mp3), and highlight merging of video-only and audio-only formats.
+- Improved download state management and progress tracking in the Android backend, reflected in the example app’s UI via event streams.
+- Removed `formatBytes` as a public method (still available internally in the example).
+
+### Fixed
+
+- No specific bugs fixed; focus was on refactoring and feature enhancements.
+
+### Notes
+
+- File sizes remain under 100 lines, and functions average around 3 lines, maintaining clean code principles.
+- The use of `print` in `setupLogging` and `initialize()` remains temporary and will be reverted to proper logging in a future release to adhere to `avoid_print` lint rules.
+
 ## [0.1.4] - 2025-03-13
 
 ### Added
@@ -82,9 +114,6 @@ All notable changes to the `flutter_yt_dlp` plugin will be documented in this fi
   - Real-time progress updates via `progressStream`.
   - State updates (preparing, downloading, merging, converting, completed, canceled, failed) via `stateStream`.
   - Option to cancel downloads mid-progress.
-- **Added**: Conversion support using FFmpeg:
-  - Convert non-MP4 video formats to MP4.
-  - Convert non-MP3 audio formats to MP3.
 - **Added**: Example app demonstrating all features with a simple UI.
 - **Platform**: Android-only support via Chaquopy for Python integration (minimum SDK 24).
 - **Dependencies**: Integrated `yt-dlp` (2025.2.19) and FFmpeg (6.0) via Chaquopy.

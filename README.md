@@ -1,16 +1,15 @@
 # flutter_yt_dlp
 
-A Flutter plugin for downloading and processing media using `yt-dlp` and FFmpeg, primarily developed with assistance from Grok, an AI by xAI.
+A Flutter plugin for downloading media using `yt-dlp` and FFmpeg, allowing users to download video and audio in their raw formats or converted to mp4 for video formats and mp3 for audio-only formats. It also provides the option to merge video-only formats with audio-only formats for greater flexibility, especially when raw video with sound formats are unavailable. Primarily developed with assistance from Grok, an AI by xAI.
 
 ## Features
 
-- **Fetch Media Formats**: Retrieve various video and audio formats from URLs.
-- **Download Media**: Support for raw video+sound, merged video+audio, and audio-only downloads.
-- **Conversion**: Convert non-MP4 video formats to MP4 and non-MP3 audio formats to MP3.
-- **Progress Monitoring**: Real-time updates on download progress and state.
-- **Cancel Downloads**: Cancel ongoing downloads with `DownloadTask.cancel()`.
-- **Byte Formatting**: Convert byte sizes to human-readable strings with `formatBytes`.
-- **Modular Design**: Code organized into `models.dart`, `utils.dart`, and `flutter_yt_dlp.dart` for maintainability.
+- **Fetch Media Formats**: Retrieve video and audio formats from URLs in a unified way.
+- **Download Media**: Download raw video+sound, merged video+audio, or audio-only formats, with the option to keep raw formats or convert to mp4 (video) or mp3 (audio-only).
+- **Merging Option**: Combine video-only and audio-only formats into a single mp4 file for diverse format support.
+- **Progress Monitoring**: Real-time updates on download progress and state via event streams.
+- **Cancel Downloads**: Cancel ongoing downloads using task IDs.
+- **Modular Design**: Code organized into `models.dart`, `utils.dart`, `format_categorizer.dart`, and `flutter_yt_dlp.dart` for maintainability.
 
 ## Platform Support
 
@@ -23,7 +22,7 @@ Add the plugin to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  flutter_yt_dlp: ^0.1.4
+  flutter_yt_dlp: ^0.2.0
 ```
 
 Run `flutter pub get` to install it.
@@ -49,7 +48,7 @@ dependencies:
 
 **Minimum SDK**: Ensure `minSdk` is set to 24 or higher in `android/app/build.gradle`.
 
-**NDK ABI Filters**: Updated to support `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64` for broader device compatibility.
+**NDK ABI Filters**: Supports `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64` for broader device compatibility.
 
 ## Usage
 
@@ -59,8 +58,8 @@ dependencies:
 import 'package:flutter_yt_dlp/flutter_yt_dlp.dart';
 
 void main() {
-  FlutterYtDlpPlugin.initialize();
-  runApp(MyApp());
+  final client = FlutterYtDlpClient();
+  runApp(MyApp(client: client));
 }
 ```
 
@@ -77,12 +76,12 @@ Future<bool> requestStoragePermission() async {
 ### Fetch Formats
 
 ```dart
+final client = FlutterYtDlpClient();
 final url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-final rawVideoFormats = await FlutterYtDlpPlugin.getAllRawVideoWithSoundFormats(url);
-final mergeFormats = await FlutterYtDlpPlugin.getRawVideoAndAudioFormatsForMerge(url);
-final convertVideoFormats = await FlutterYtDlpPlugin.getNonMp4VideoWithSoundFormatsForConversion(url);
-final rawAudioFormats = await FlutterYtDlpPlugin.getAllRawAudioOnlyFormats(url);
-final convertAudioFormats = await FlutterYtDlpPlugin.getNonMp3AudioOnlyFormatsForConversion(url);
+final videoInfo = await client.getVideoInfo(url);
+final rawVideoFormats = videoInfo['rawVideoWithSoundFormats'] as List<Map<String, dynamic>>;
+final mergeFormats = videoInfo['mergeFormats'] as List<Map<String, dynamic>>;
+final rawAudioFormats = videoInfo['rawAudioOnlyFormats'] as List<Map<String, dynamic>>;
 ```
 
 ### Start a Download
@@ -92,46 +91,41 @@ import 'package:path_provider/path_provider.dart';
 
 final outputDir = (await getExternalStorageDirectory())!.path;
 final format = rawVideoFormats.first;
-final task = await FlutterYtDlpPlugin.download(
-  format: format,
+final taskId = await client.startDownload(
+  format: {...format, 'downloadAsRaw': true}, // Set to false to convert to mp4/mp3
   outputDir: outputDir,
   url: url,
-  originalName: "MyVideo",
   overwrite: true,
+  overrideName: "MyVideo",
 );
 
-task.progressStream.listen((progress) {
-  print("Progress: ${(progress.percentage * 100).toStringAsFixed(1)}%");
-  print("Downloaded: ${FlutterYtDlpPlugin.formatBytes(progress.downloadedBytes)}");
-});
-
-task.stateStream.listen((state) {
-  print("State: $state");
+client.getDownloadEvents().listen((event) {
+  if (event['taskId'] != taskId) return;
+  if (event['type'] == 'progress') {
+    final progress = DownloadProgress.fromMap(event);
+    print("Progress: ${(progress.percentage * 100).toStringAsFixed(1)}%");
+  } else if (event['type'] == 'state') {
+    final state = DownloadState.values[event['state'] as int];
+    print("State: $state");
+  }
 });
 ```
 
 ### Cancel a Download
 
 ```dart
-await task.cancel();
-```
-
-### Format Bytes
-
-```dart
-final sizeInBytes = 1234567;
-final readableSize = FlutterYtDlpPlugin.formatBytes(sizeInBytes); // e.g., "1.18 MB"
+await client.cancelDownload(taskId);
 ```
 
 ## Format Types
 
 - **Format**: Base class for audio-only formats, containing `formatId`, `ext`, `resolution`, `bitrate`, and `size`.
-- **CombinedFormat**: Extends `Format` for video+sound formats, with a `needsConversion` flag.
-- **MergeFormat**: Represents separate video and audio formats to be merged into MP4.
+- **CombinedFormat**: Extends `Format` for video+sound formats, with a `needsConversion` flag indicating if it’s not mp4.
+- **MergeFormat**: Represents separate video-only and audio-only formats to be merged into mp4.
 
 ## Example
 
-See the `example/` directory for a sample app with a UI demonstrating downloads and cancellation.
+See the `example/` directory for a sample app with a UI demonstrating format selection (raw or converted), merging options, downloads, and cancellation.
 
 ## Limitations
 
@@ -143,7 +137,7 @@ See the `example/` directory for a sample app with a UI demonstrating downloads 
 
 - **Permission Denied**: Ensure permissions (e.g., storage or internet) are granted in the app’s manifest and requested at runtime if needed.
 - **No Formats Found**: Verify the URL is valid and supported by `yt-dlp`. Test with a known working URL.
-- **Download Fails**: Enable logging with `initialize()` (e.g., `FlutterYtDlp.initialize(enableLogging: true)`) and check the logs for detailed error messages.
+- **Download Fails**: Enable logging in `FlutterYtDlpClient` instantiation (e.g., `FlutterYtDlpClient()`) and check logs for errors.
 - **Initialization Errors**: Review console output for exceptions during plugin initialization, such as Python runtime or dependency issues.
 - **Excessive `cancelDraw` Logs on Android**: If logs show repeated `I/ViewRootImpl@...[MainActivity]: [DP] cancelDraw` messages (e.g., on some Samsung devices like Galaxy A20, Android 11), switch to `FlutterTextureView` by overriding `getRenderMode()` in your `MainActivity.kt`:
 
@@ -160,7 +154,7 @@ See the `example/` directory for a sample app with a UI demonstrating downloads 
   }
   ```
 
-  This can resolve rendering instability but may not be necessary for all devices. Test with the default `FlutterSurfaceView` (no override) first, and apply this fix only if needed.
+  Test with the default `FlutterSurfaceView` first, and apply this fix only if needed.
 
 ## Credits
 
