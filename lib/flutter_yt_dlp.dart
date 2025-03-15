@@ -85,7 +85,6 @@ class FlutterYtDlpClient {
     PluginLogger.info('Subscribing to download events');
     return _eventChannel.receiveBroadcastStream().map((event) {
       final eventMap = _convertToMap(event);
-      debugPrint('Raw event received: $eventMap');
       if (eventMap['type'] == 'state') {
         final stateIndex = eventMap['state'] as int? ?? 0;
         final stateName = DownloadState.values[stateIndex].name;

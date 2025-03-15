@@ -140,7 +140,6 @@ class DownloadProvider extends ChangeNotifier {
         _resetDownloadState(_status);
       }
     }
-    debugPrint('Notifying listeners with status: $_status');
     notifyListeners();
   }
 
