@@ -1,6 +1,7 @@
 import 'logger.dart';
 import 'models.dart';
 
+/// Generates an output file path based on format and metadata.
 String generateOutputPath(
   dynamic format,
   String outputDir,
@@ -33,6 +34,7 @@ String generateOutputPath(
   return filePath;
 }
 
+/// Converts a format object to a map representation.
 Map<String, dynamic> convertFormatToMap(dynamic format) {
   if (format is MergeFormat) return format.toMap();
   if (format is CombinedFormat) return format.toMap();

@@ -158,12 +158,25 @@ class DownloadProgress {
 
 /// Defines possible states of a download.
 enum DownloadState {
+  /// Preparing the download.
   preparing,
+
+  /// Actively downloading.
   downloading,
+
+  /// Merging video and audio streams.
   merging,
+
+  /// Converting the file format.
   converting,
+
+  /// Download completed successfully.
   completed,
+
+  /// Download was canceled by the user.
   canceled,
+
+  /// Download failed due to an error.
   failed,
 }
 

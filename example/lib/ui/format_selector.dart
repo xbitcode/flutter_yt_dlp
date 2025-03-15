@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import '../download_provider.dart';
 
+/// Allows users to select a download format and toggle raw download option.
 class FormatSelector extends StatelessWidget {
   final DownloadProvider provider;
   final List<Map<String, dynamic>> formats;
 
-  const FormatSelector(
-      {required this.provider, required this.formats, super.key});
+  const FormatSelector({
+    required this.provider,
+    required this.formats,
+    super.key,
+  });
 
   String _formatDisplayName(Map<String, dynamic> format) {
     if (format['type'] == 'merge') {
@@ -18,10 +22,13 @@ class FormatSelector extends StatelessWidget {
   }
 
   bool _canToggleConversion() {
-    if (provider.selectedFormat == null) return false;
+    if (provider.selectedFormat == null) {
+      return false;
+    }
     final format = provider.selectedFormat!;
-    if (format['type'] == 'merge')
+    if (format['type'] == 'merge') {
       return false; // Merge formats are always mp4, no conversion toggle
+    }
     final ext = format['ext'] as String? ?? 'unknown';
     final isVideoWithSound =
         format['type'] == 'combined' && format['needsConversion'] != null;

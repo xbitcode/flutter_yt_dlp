@@ -6,6 +6,7 @@ import 'url_input.dart';
 import 'format_selector.dart';
 import 'download_controls.dart';
 
+/// Displays the main screen for managing downloads.
 class DownloadScreen extends StatefulWidget {
   const DownloadScreen({super.key});
 
@@ -26,7 +27,7 @@ class _DownloadScreenState extends State<DownloadScreen> {
   }
 
   Future<void> _requestStoragePermission() async {
-    if (!await Permission.storage.request().isGranted) {
+    if (!await Permission.storage.request().isGranted && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Storage permission denied')),
       );
