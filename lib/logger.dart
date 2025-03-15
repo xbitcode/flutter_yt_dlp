@@ -3,15 +3,20 @@ import 'package:logging/logging.dart';
 /// Provides logging utilities for the FlutterYtDlp plugin.
 class PluginLogger {
   static final Logger _logger = Logger('FlutterYtDlpPlugin');
+  static bool _isSetup = false;
 
   /// Sets up logging with a default configuration.
   static void setup() {
+    if (_isSetup) return; // Prevent multiple setups
     Logger.root.level = Level.ALL;
     Logger.root.onRecord.listen((record) {
-      // Using logger instead of print for production readiness
-      _logger.info('${record.level.name}: ${record.time}: ${record.message}');
+      // Use print temporarily to avoid reentrancy; replace with a proper output in production
+      print('${record.level.name}: ${record.time}: ${record.message}');
     });
-    _logger.info('Logging initialized for FlutterYtDlpPlugin');
+    _isSetup = true;
+    // Log initialization asynchronously to avoid reentrancy
+    Future.microtask(
+        () => _logger.info('Logging initialized for FlutterYtDlpPlugin'));
   }
 
   /// Logs an informational message.
