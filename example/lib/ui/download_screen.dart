@@ -1,99 +1,92 @@
 import 'package:flutter/material.dart';
-import '../download_manager.dart';
-import 'package:flutter_yt_dlp/flutter_yt_dlp.dart';
+import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../download_provider.dart';
+import 'url_input.dart';
+import 'format_selector.dart';
+import 'download_controls.dart';
 
 class DownloadScreen extends StatefulWidget {
-  final DownloadManager downloadManager;
-
-  const DownloadScreen({super.key, required this.downloadManager});
+  const DownloadScreen({super.key});
 
   @override
   State<DownloadScreen> createState() => _DownloadScreenState();
 }
 
 class _DownloadScreenState extends State<DownloadScreen> {
-  static const _url = "https://youtu.be/l2Uoid2eqII?si=W9xgTB9bfRK5ss6V";
-  static const _originalName = "RickRoll";
+  final TextEditingController _urlController = TextEditingController(
+      text: 'https://youtu.be/nl8o9PsJPAQ?si=IDsVPZ-3K3q2U6cg');
 
-  void _updateStatus(String newStatus) =>
-      setState(() => widget.downloadManager.status = newStatus);
-  void _updateProgress(double newProgress) =>
-      setState(() => widget.downloadManager.progress = newProgress);
+  @override
+  void initState() {
+    super.initState();
+    final provider = Provider.of<DownloadProvider>(context, listen: false);
+    _requestStoragePermission().then((_) => provider.initializeDownloadsDir());
+    provider.listenToDownloadEvents();
+  }
+
+  Future<void> _requestStoragePermission() async {
+    if (!await Permission.storage.request().isGranted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Storage permission denied')),
+      );
+    }
+  }
+
+  List<Map<String, dynamic>> _getAllFormats(Map<String, dynamic>? videoInfo) {
+    if (videoInfo == null) return [];
+    return [
+      ...(videoInfo['rawVideoWithSoundFormats'] as List<dynamic>? ?? []),
+      ...(videoInfo['mergeFormats'] as List<dynamic>? ?? []),
+      ...(videoInfo['rawAudioOnlyFormats'] as List<dynamic>? ?? []),
+    ].cast<Map<String, dynamic>>();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('FlutterYtDlp Demo')),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildThumbnail(),
-              Text(widget.downloadManager.status),
-              const SizedBox(height: 20),
-              LinearProgressIndicator(value: widget.downloadManager.progress),
-              const SizedBox(height: 20),
-              _buildDownloadButton("Raw Video+Sound",
-                  FlutterYtDlpPlugin.getAllRawVideoWithSoundFormats),
-              _buildDownloadButton("Merge Video+Audio",
-                  FlutterYtDlpPlugin.getRawVideoAndAudioFormatsForMerge),
-              _buildDownloadButton(
-                  "Convert Video+Sound",
-                  FlutterYtDlpPlugin
-                      .getNonMp4VideoWithSoundFormatsForConversion),
-              _buildDownloadButton(
-                  "Raw Audio", FlutterYtDlpPlugin.getAllRawAudioOnlyFormats),
-              _buildDownloadButton("Convert Audio",
-                  FlutterYtDlpPlugin.getNonMp3AudioOnlyFormatsForConversion),
-              _buildDownloadButton("All Video+Sound",
-                  FlutterYtDlpPlugin.getAllVideoWithSoundFormats),
-              _buildDownloadButton(
-                  "All Audio", FlutterYtDlpPlugin.getAllAudioOnlyFormats),
-              _buildCancelButton(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+    return Consumer<DownloadProvider>(
+      builder: (context, provider, child) {
+        final formats = _getAllFormats(provider.videoInfo);
 
-  Widget _buildThumbnail() {
-    return widget.downloadManager.thumbnailUrl != null
-        ? Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Image.network(
-              widget.downloadManager.thumbnailUrl!,
-              height: 100,
-              width: 100,
-              errorBuilder: (context, error, stackTrace) =>
-                  const Text("Failed to load thumbnail"),
+        return Scaffold(
+          appBar: AppBar(title: const Text('Download Screen')),
+          body: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  UrlInput(controller: _urlController, provider: provider),
+                  const SizedBox(height: 16),
+                  if (provider.videoInfo != null) ...[
+                    Text(
+                      'Title: ${provider.videoInfo?['title'] ?? 'Loading...'}',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    if (provider.videoInfo?['thumbnail'] != null)
+                      Image.network(
+                        provider.videoInfo!['thumbnail'],
+                        height: 150,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.error),
+                      ),
+                  ],
+                  const SizedBox(height: 16),
+                  Text('Status: ${provider.status}'),
+                  LinearProgressIndicator(value: provider.progress),
+                  const SizedBox(height: 16),
+                  if (formats.isNotEmpty)
+                    FormatSelector(provider: provider, formats: formats),
+                  const SizedBox(height: 16),
+                  DownloadControls(
+                      provider: provider, url: _urlController.text),
+                ],
+              ),
             ),
-          )
-        : const SizedBox.shrink();
-  }
-
-  Widget _buildDownloadButton<T>(
-      String label, Future<List<T>> Function(String) fetchFormats) {
-    return ElevatedButton(
-      onPressed: () => widget.downloadManager.startDownload<T>(
-        url: _url,
-        originalName: _originalName,
-        fetchFormats: fetchFormats,
-        label: label,
-        onStatusUpdate: _updateStatus,
-        onProgressUpdate: _updateProgress,
-      ),
-      child: Text("Download $label"),
-    );
-  }
-
-  Widget _buildCancelButton() {
-    return ElevatedButton(
-      onPressed: widget.downloadManager.currentTask != null
-          ? () => widget.downloadManager.cancelDownload(_updateStatus)
-          : null,
-      child: const Text("Cancel Download"),
+          ),
+        );
+      },
     );
   }
 }

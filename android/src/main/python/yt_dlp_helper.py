@@ -1,4 +1,3 @@
-# C:\Users\Abdullah\flutter_apps_temp\flutter_yt_dlp\android\src\main\python\yt_dlp_helper.py
 import yt_dlp
 import json
 import os
@@ -8,157 +7,49 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def _extract_format_info(f):
+
+def extract_format_info(format_data):
+    """Extracts and sanitizes format info from yt-dlp format data."""
     return {
-        "formatId": f.get("format_id", "unknown"),
-        "ext": f.get("ext", "unknown"),
+        "formatId": format_data.get("format_id", "unknown"),
+        "ext": format_data.get("ext", "unknown"),
         "resolution": (
-            f.get("resolution", "unknown")
-            if f.get("vcodec", "none") != "none"
+            format_data.get("resolution", "unknown")
+            if format_data.get("vcodec", "none") != "none"
             else "audio only"
         ),
-        "bitrate": int(f.get("tbr", 0)),
-        "size": int(f.get("filesize", 0) or f.get("filesize_approx", 0) or 0),
+        "bitrate": int(format_data.get("tbr", 0) or 0),
+        "size": int(
+            format_data.get("filesize", 0) or format_data.get("filesize_approx", 0) or 0
+        ),
+        "vcodec": format_data.get("vcodec", "none"),
+        "acodec": format_data.get("acodec", "none"),
     }
 
-def get_all_raw_video_with_sound_formats(url):
-    ydl_opts = {"quiet": True}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            formats = [
-                f
-                for f in info["formats"]
-                if f.get("vcodec", "none") != "none"
-                and f.get("acodec", "none") != "none"
-            ]
-            if not formats:
-                logger.warning(f"No raw video with sound formats found for {url}")
-            result = json.dumps([_extract_format_info(f) for f in formats])
-            logger.info(f"Fetched {len(formats)} raw video+sound formats for {url}")
-            return result
-    except Exception as e:
-        logger.error(f"Error fetching raw video+sound formats for {url}: {str(e)}")
-        return json.dumps([])
 
-def get_raw_video_and_audio_formats_for_merge(url):
+def get_video_info(url):
+    """Fetches all video metadata and raw formats using yt-dlp."""
     ydl_opts = {"quiet": True}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            video_formats = [
-                f
-                for f in info["formats"]
-                if f.get("vcodec", "none") != "none"
-                and f.get("acodec", "none") == "none"
-            ]
-            audio_formats = sorted(
-                [
-                    f
-                    for f in info["formats"]
-                    if f.get("vcodec", "none") == "none"
-                    and f.get("acodec", "none") != "none"
-                ],
-                key=lambda x: x.get("tbr", 0),
-                reverse=True,
+            video_info = {
+                "title": info.get("title", "unknown_video"),
+                "thumbnail": info.get("thumbnail", None),
+                "formats": [extract_format_info(f) for f in info.get("formats", [])],
+            }
+            logger.info(
+                f"Fetched video info for {url}: title={video_info['title']}, formats={len(video_info['formats'])}"
             )
-            if not audio_formats or not video_formats:
-                logger.warning(f"No mergeable video or audio formats found for {url}")
-                return json.dumps([])
-            best_audio = audio_formats[0]
-            result = json.dumps(
-                [
-                    {
-                        "video": _extract_format_info(v),
-                        "audio": _extract_format_info(best_audio),
-                    }
-                    for v in video_formats
-                ]
-            )
-            logger.info(f"Fetched {len(video_formats)} merge formats for {url}")
-            return result
+            return json.dumps(video_info)
     except Exception as e:
-        logger.error(f"Error fetching merge formats for {url}: {str(e)}")
-        return json.dumps([])
+        logger.error(f"Error fetching video info for {url}: {str(e)}")
+        return json.dumps({"title": "unknown_video", "thumbnail": None, "formats": []})
 
-def get_non_mp4_video_with_sound_formats_for_conversion(url):
-    ydl_opts = {"quiet": True}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            formats = [
-                f
-                for f in info["formats"]
-                if f.get("vcodec", "none") != "none"
-                and f.get("acodec", "none") != "none"
-                and f.get("ext", "") != "mp4"
-            ]
-            if not formats:
-                logger.warning(f"No non-MP4 video+sound formats found for {url}")
-            result = json.dumps([_extract_format_info(f) for f in formats])
-            logger.info(f"Fetched {len(formats)} non-MP4 video+sound formats for {url}")
-            return result
-    except Exception as e:
-        logger.error(f"Error fetching non-MP4 video+sound formats for {url}: {str(e)}")
-        return json.dumps([])
-
-def get_all_raw_audio_only_formats(url):
-    ydl_opts = {"quiet": True}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            formats = [
-                f
-                for f in info["formats"]
-                if f.get("vcodec", "none") == "none"
-                and f.get("acodec", "none") != "none"
-            ]
-            if not formats:
-                logger.warning(f"No raw audio-only formats found for {url}")
-            result = json.dumps([_extract_format_info(f) for f in formats])
-            logger.info(f"Fetched {len(formats)} raw audio-only formats for {url}")
-            return result
-    except Exception as e:
-        logger.error(f"Error fetching raw audio-only formats for {url}: {str(e)}")
-        return json.dumps([])
-
-def get_non_mp3_audio_only_formats_for_conversion(url):
-    ydl_opts = {"quiet": True}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            formats = [
-                f
-                for f in info["formats"]
-                if f.get("vcodec", "none") == "none"
-                and f.get("acodec", "none") != "none"
-                and f.get("ext", "") != "mp3"
-            ]
-            if not formats:
-                logger.warning(f"No non-MP3 audio-only formats found for {url}")
-            result = json.dumps([_extract_format_info(f) for f in formats])
-            logger.info(f"Fetched {len(formats)} non-MP3 audio-only formats for {url}")
-            return result
-    except Exception as e:
-        logger.error(f"Error fetching non-MP3 audio-only formats for {url}: {str(e)}")
-        return json.dumps([])
-
-def get_thumbnail_url(url):
-    ydl_opts = {"quiet": True}
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            thumbnail = info.get("thumbnail", None)
-            if not thumbnail:
-                logger.warning(f"No thumbnail found for {url}")
-                return None
-            logger.info(f"Thumbnail URL for {url}: {thumbnail}")
-            return thumbnail
-    except Exception as e:
-        logger.error(f"Error fetching thumbnail for {url}: {str(e)}")
-        return None
 
 def download_format(url, format_id, output_path, overwrite, progress_callback):
+    """Downloads a specific format with progress updates."""
+
     def hook(d):
         if d["status"] == "downloading":
             downloaded = d.get("downloaded_bytes", 0)

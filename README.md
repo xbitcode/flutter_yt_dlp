@@ -141,10 +141,26 @@ See the `example/` directory for a sample app with a UI demonstrating downloads 
 
 ## Troubleshooting
 
-- **Permission Denied**: Ensure permissions are granted.
-- **No Formats Found**: Check URL validity.
-- **Download Fails**: Enable logging with `initialize()` and check logs for errors.
-- **Initialization Errors**: Check console output for initialization exceptions.
+- **Permission Denied**: Ensure permissions (e.g., storage or internet) are granted in the app’s manifest and requested at runtime if needed.
+- **No Formats Found**: Verify the URL is valid and supported by `yt-dlp`. Test with a known working URL.
+- **Download Fails**: Enable logging with `initialize()` (e.g., `FlutterYtDlp.initialize(enableLogging: true)`) and check the logs for detailed error messages.
+- **Initialization Errors**: Review console output for exceptions during plugin initialization, such as Python runtime or dependency issues.
+- **Excessive `cancelDraw` Logs on Android**: If logs show repeated `I/ViewRootImpl@...[MainActivity]: [DP] cancelDraw` messages (e.g., on some Samsung devices like Galaxy A20, Android 11), switch to `FlutterTextureView` by overriding `getRenderMode()` in your `MainActivity.kt`:
+
+  ```kotlin
+  package com.your.app
+
+  import io.flutter.embedding.android.FlutterActivity
+  import io.flutter.embedding.android.RenderMode
+
+  class MainActivity : FlutterActivity() {
+      override fun getRenderMode(): RenderMode {
+          return RenderMode.texture
+      }
+  }
+  ```
+
+  This can resolve rendering instability but may not be necessary for all devices. Test with the default `FlutterSurfaceView` (no override) first, and apply this fix only if needed.
 
 ## Credits
 

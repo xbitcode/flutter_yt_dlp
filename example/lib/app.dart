@@ -1,28 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'download_manager.dart';
 import 'ui/download_screen.dart';
+import 'download_provider.dart';
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  MyAppState createState() => MyAppState();
-}
-
-class MyAppState extends State<MyApp> {
-  final _downloadManager = DownloadManager();
-
-  @override
-  void initState() {
-    super.initState();
-    _downloadManager
-        .fetchThumbnail("https://youtu.be/l2Uoid2eqII?si=W9xgTB9bfRK5ss6V");
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: DownloadScreen(downloadManager: _downloadManager),
+    return MultiProvider(
+      providers: [
+        Provider<DownloadManager>(
+          create: (_) => DownloadManager(),
+        ),
+        ChangeNotifierProvider<DownloadProvider>(
+          create: (_) => DownloadProvider(),
+        ),
+      ],
+      child: const MaterialApp(
+        home: DownloadScreen(),
+      ),
     );
   }
 }
