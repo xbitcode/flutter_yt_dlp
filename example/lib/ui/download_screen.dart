@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import '../download_provider.dart';
 import 'url_input.dart';
 import 'format_selector.dart';
 import 'download_controls.dart';
 
-/// Displays the main screen for managing downloads.
 class DownloadScreen extends StatefulWidget {
   const DownloadScreen({super.key});
 
@@ -15,8 +14,8 @@ class DownloadScreen extends StatefulWidget {
 }
 
 class _DownloadScreenState extends State<DownloadScreen> {
-  final TextEditingController _urlController = TextEditingController(
-      text: 'https://youtu.be/nl8o9PsJPAQ?si=IDsVPZ-3K3q2U6cg');
+  final _urlController =
+      TextEditingController(text: 'https://youtu.be/nl8o9PsJPAQ');
 
   @override
   void initState() {
@@ -27,28 +26,28 @@ class _DownloadScreenState extends State<DownloadScreen> {
   }
 
   Future<void> _requestStoragePermission() async {
-    if (!await Permission.storage.request().isGranted && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Storage permission denied')),
-      );
+    if (!await Permission.storage.request().isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Storage permission required')),
+        );
+      }
     }
   }
 
-  List<Map<String, dynamic>> _getAllFormats(Map<String, dynamic>? videoInfo) {
-    if (videoInfo == null) return [];
+  List<Map<String, dynamic>> _getAllFormats(Map<String, dynamic>? info) {
     return [
-      ...(videoInfo['rawVideoWithSoundFormats'] as List<dynamic>? ?? []),
-      ...(videoInfo['mergeFormats'] as List<dynamic>? ?? []),
-      ...(videoInfo['rawAudioOnlyFormats'] as List<dynamic>? ?? []),
+      ...(info?['rawVideoWithSoundFormats'] as List<dynamic>? ?? []),
+      ...(info?['mergeFormats'] as List<dynamic>? ?? []),
+      ...(info?['rawAudioOnlyFormats'] as List<dynamic>? ?? []),
     ].cast<Map<String, dynamic>>();
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<DownloadProvider>(
-      builder: (context, provider, child) {
+      builder: (context, provider, _) {
         final formats = _getAllFormats(provider.videoInfo);
-
         return Scaffold(
           appBar: AppBar(title: const Text('Download Screen')),
           body: Padding(
@@ -60,18 +59,11 @@ class _DownloadScreenState extends State<DownloadScreen> {
                   UrlInput(controller: _urlController, provider: provider),
                   const SizedBox(height: 16),
                   if (provider.videoInfo != null) ...[
-                    Text(
-                      'Title: ${provider.videoInfo?['title'] ?? 'Loading...'}',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
+                    Text('Title: ${provider.videoInfo!['title']}'),
                     const SizedBox(height: 8),
-                    if (provider.videoInfo?['thumbnail'] != null)
-                      Image.network(
-                        provider.videoInfo!['thumbnail'],
-                        height: 150,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.error),
-                      ),
+                    if (provider.videoInfo!['thumbnail'] != null)
+                      Image.network(provider.videoInfo!['thumbnail'],
+                          height: 150, fit: BoxFit.cover),
                   ],
                   const SizedBox(height: 16),
                   Text('Status: ${provider.status}'),

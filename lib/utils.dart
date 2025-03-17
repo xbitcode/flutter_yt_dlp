@@ -1,43 +1,52 @@
 import 'logger.dart';
-import 'models.dart';
 
-/// Generates an output file path based on format and metadata.
 String generateOutputPath(
-  dynamic format,
+  Map<String, dynamic> format,
   String outputDir,
   String videoTitle,
   String? overrideName,
+  bool overwrite,
 ) {
   final baseName =
-      overrideName ?? videoTitle.replaceAll(RegExp(r'[^\w\s-]'), '').trim();
-  String filePath;
+      (overrideName ?? videoTitle).replaceAll(RegExp(r'[^\w\s-]'), '').trim();
+  String suffix;
+  String ext;
 
-  if (format is MergeFormat) {
-    final resolution = format.video.resolution ?? 'unknown';
-    final bitrate = format.audio.bitrate;
-    filePath = "$outputDir/${baseName}_${resolution}_${bitrate}kbps.mp4";
-  } else if (format is CombinedFormat) {
-    final ext = format.needsConversion ? 'mp4' : (format.ext ?? 'unknown');
-    final resolution = format.resolution ?? 'unknown';
-    final bitrate = format.bitrate;
-    filePath = "$outputDir/${baseName}_${resolution}_${bitrate}kbps.$ext";
-  } else if (format is Format) {
-    final ext = format.ext == 'mp3' ? 'mp3' : 'mp3';
-    final resolution = format.resolution ?? 'unknown';
-    final bitrate = format.bitrate;
-    filePath = "$outputDir/${baseName}_${resolution}_${bitrate}kbps.$ext";
-  } else {
-    throw ArgumentError('Unsupported format type');
+  switch (format['type'] as String) {
+    case 'combined':
+      suffix = '${format['resolution']}_${format['bitrate']}kbps';
+      ext = format['needsConversion'] as bool &&
+              !(format['downloadAsRaw'] as bool? ?? true)
+          ? 'mp4'
+          : format['ext'] as String;
+      break;
+    case 'merge':
+      final video = format['video'] as Map<String, dynamic>;
+      final audio = format['audio'] as Map<String, dynamic>;
+      suffix = '${video['resolution']}_${audio['bitrate']}kbps';
+      ext = 'mp4';
+      break;
+    case 'audio_only':
+      suffix = '${format['bitrate']}kbps';
+      ext = format['needsConversion'] as bool &&
+              !(format['downloadAsRaw'] as bool? ?? true)
+          ? 'mp3'
+          : format['ext'] as String;
+      break;
+    default:
+      throw ArgumentError('Unknown format type: ${format['type']}');
   }
 
-  PluginLogger.info('Generated output path: $filePath');
+  String filePath = '$outputDir/${baseName}_$suffix.$ext';
+  if (!overwrite) {
+    filePath = _getUniqueFilePath(filePath);
+  }
+  PluginLogger.info('Generated path: $filePath');
   return filePath;
 }
 
-/// Converts a format object to a map representation.
-Map<String, dynamic> convertFormatToMap(dynamic format) {
-  if (format is MergeFormat) return format.toMap();
-  if (format is CombinedFormat) return format.toMap();
-  if (format is Format) return format.toMap();
-  throw ArgumentError('Unsupported format type');
+String _getUniqueFilePath(String basePath) {
+  // Note: Actual file existence check requires platform-specific code.
+  // This is a placeholder assuming uniqueness is handled on the native side.
+  return basePath;
 }

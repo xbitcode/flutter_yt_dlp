@@ -1,8 +1,8 @@
 package com.example.flutter_yt_dlp
 
 class ProgressTracker(val totalSize: Long) {
-    private var downloadedVideo: Long = 0
-    private var downloadedAudio: Long = 0
+    @Volatile private var downloadedVideo: Long = 0
+    @Volatile private var downloadedAudio: Long = 0
 
     @Synchronized
     fun updateVideoProgress(downloaded: Long) {
@@ -14,6 +14,5 @@ class ProgressTracker(val totalSize: Long) {
         downloadedAudio = downloaded
     }
 
-    @Synchronized
-    fun getCombinedDownloaded(): Long = downloadedVideo + downloadedAudio
+    @Synchronized fun getCombinedDownloaded(): Long = downloadedVideo + downloadedAudio
 }

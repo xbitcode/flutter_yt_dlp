@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'download_manager.dart';
-import 'ui/download_screen.dart';
 import 'download_provider.dart';
+import 'ui/download_screen.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -11,16 +11,10 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<DownloadManager>(
-          create: (_) => DownloadManager(),
-        ),
-        ChangeNotifierProvider<DownloadProvider>(
-          create: (_) => DownloadProvider(),
-        ),
+        Provider(create: (_) => DownloadManager()),
+        ChangeNotifierProvider(create: (_) => DownloadProvider()),
       ],
-      child: const MaterialApp(
-        home: DownloadScreen(),
-      ),
+      child: const MaterialApp(home: DownloadScreen()),
     );
   }
 }

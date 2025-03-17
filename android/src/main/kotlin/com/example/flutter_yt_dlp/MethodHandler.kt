@@ -5,17 +5,13 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import kotlin.concurrent.thread
 
-class MethodHandler(private val channelManager: ChannelManager) : MethodChannel.MethodCallHandler {
+class MethodHandler(
+        private val channelManager: ChannelManager,
+        private val downloadManager: DownloadManager,
+        private val downloadProcessor: DownloadProcessor
+) : MethodChannel.MethodCallHandler {
     private val tag = "FlutterYtDlpPlugin"
     private val videoInfoFetcher = VideoInfoFetcher()
-    private val downloadManager: DownloadManager
-
-    init {
-        val tempDownloadManager = DownloadManager(channelManager, null)
-        val downloadProcessor = DownloadProcessor(channelManager, tempDownloadManager)
-        tempDownloadManager.downloadProcessor = downloadProcessor
-        downloadManager = tempDownloadManager
-    }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         thread {
@@ -30,7 +26,7 @@ class MethodHandler(private val channelManager: ChannelManager) : MethodChannel.
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) {
-                Log.e(tag, "Error in method call: ${call.method}", e)
+                Log.e(tag, "Method call failed: ${call.method}", e)
                 result.error("ERROR", "Failed to execute ${call.method}: ${e.message}", null)
             }
         }

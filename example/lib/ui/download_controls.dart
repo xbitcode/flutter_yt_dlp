@@ -13,11 +13,10 @@ class DownloadControls extends StatelessWidget {
     return Column(
       children: [
         ElevatedButton(
-          onPressed: provider.currentTask == null &&
-                  provider.selectedFormat != null &&
-                  provider.downloadsDir != null
-              ? () => provider.startDownload(url)
-              : null,
+          onPressed:
+              provider.currentTask == null && provider.selectedFormat != null
+                  ? () => provider.startDownload(url)
+                  : null,
           child: const Text('Start Download'),
         ),
         ElevatedButton(

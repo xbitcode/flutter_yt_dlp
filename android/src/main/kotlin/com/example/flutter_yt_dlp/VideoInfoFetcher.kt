@@ -5,37 +5,44 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 class VideoInfoFetcher {
-    private val TAG = "FlutterYtDlpPlugin"
+    private val tag = "FlutterYtDlpPlugin"
     private val jsonParser = JsonParser()
+    private val cache = mutableMapOf<String, Map<String, Any>>()
 
-    companion object {
-        private val videoInfoCache = mutableMapOf<String, Map<String, Any>>()
-    }
-
-    fun fetchVideoInfo(call: MethodCall, result: MethodChannel.Result, module: com.chaquo.python.PyObject) {
-        val url = call.argument<String>("url")!!
-        if (videoInfoCache.containsKey(url)) {
-            Log.i(TAG, "Returning cached video info for: $url")
-            result.success(videoInfoCache[url])
-            return
+    fun fetchVideoInfo(
+            call: MethodCall,
+            result: MethodChannel.Result,
+            module: com.chaquo.python.PyObject
+    ) {
+        val url =
+                call.argument<String>("url")
+                        ?: return result.error("INVALID_URL", "URL missing", null)
+        if (cache.containsKey(url)) {
+            Log.i(tag, "Returning cached video info for: $url")
+            return result.success(cache[url])
         }
-        Log.i(TAG, "Fetching video info for: $url")
+        Log.i(tag, "Fetching video info for: $url")
         val infoJson = module.callAttr("get_video_info", url).toString()
         val info = jsonParser.parseJsonMap(infoJson)
-        videoInfoCache[url] = info
-        Log.i(TAG, "Video info fetched and cached for $url")
+        cache[url] = info
         result.success(info)
     }
 
     fun fetchThumbnailUrl(call: MethodCall, result: MethodChannel.Result) {
-        val url = call.argument<String>("url")!!
-        val cachedInfo = videoInfoCache[url]
-        if (cachedInfo != null) {
-            Log.i(TAG, "Returning cached thumbnail URL for: $url")
-            result.success(cachedInfo["thumbnail"])
-        } else {
-            Log.w(TAG, "No cached info for $url, fetching video info first")
-            fetchVideoInfo(call, result, com.chaquo.python.Python.getInstance().getModule("yt_dlp_helper"))
+        val url =
+                call.argument<String>("url")
+                        ?: return result.error("INVALID_URL", "URL missing", null)
+        cache[url]?.let {
+            Log.i(tag, "Returning cached thumbnail for: $url")
+            result.success(it["thumbnail"])
         }
+                ?: run {
+                    Log.w(tag, "No cached info for $url, fetching anew")
+                    fetchVideoInfo(
+                            call,
+                            result,
+                            com.chaquo.python.Python.getInstance().getModule("yt_dlp_helper")
+                    )
+                }
     }
 }

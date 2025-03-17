@@ -1,8 +1,8 @@
 package com.example.flutter_yt_dlp
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodChannel
 
 class ChannelManager(binding: FlutterPlugin.FlutterPluginBinding) {
     private val methodChannel = MethodChannel(binding.binaryMessenger, "flutter_yt_dlp")
@@ -23,9 +23,11 @@ class ChannelManager(binding: FlutterPlugin.FlutterPluginBinding) {
         eventSink = null
     }
 
+    fun sendEvent(event: Map<String, Any>) {
+        eventSink?.success(event)
+    }
+
     fun setEventSink(sink: EventChannel.EventSink?) {
         eventSink = sink
     }
-
-    fun getEventSink(): EventChannel.EventSink? = eventSink
 }

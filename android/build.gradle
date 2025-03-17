@@ -7,12 +7,10 @@ buildscript {
         mavenCentral()
         maven { url "https://chaquo.com/maven" }
     }
-
     dependencies {
         classpath("com.android.tools.build:gradle:7.3.0")
         classpath "com.chaquo.python:gradle:15.0.1"
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")
-
     }
 }
 
@@ -38,7 +36,6 @@ android {
         }
     }
 
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -48,11 +45,9 @@ android {
         jvmTarget = '1.8'
     }
 
-
     defaultConfig {
         minSdk = 24
         targetSdk = 34
-
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
         }
@@ -71,7 +66,6 @@ chaquopy {
         pip {
             install "yt-dlp==2025.2.19"
         }
-        extractPackages "com.arthenica:ffmpeg-kit-full:6.0"
     }
 }
 

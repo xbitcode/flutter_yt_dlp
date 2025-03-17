@@ -4,39 +4,43 @@ import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import java.util.UUID
 import kotlin.concurrent.thread
 
 class DownloadManager(
-    var channelManager: ChannelManager,
-    var downloadProcessor: DownloadProcessor?
+        private val channelManager: ChannelManager,
+        private val downloadProcessor: DownloadProcessor
 ) {
     private val activeDownloads = mutableMapOf<String, Boolean>()
     private val handler = Handler(Looper.getMainLooper())
 
     fun startDownload(call: MethodCall, result: MethodChannel.Result) {
-        val format = call.argument<Map<String, Any>>("format")
-            ?: return result.error("INVALID_FORMAT", "Format missing", null)
-        val outputDir = call.argument<String>("outputDir")
-            ?: return result.error("INVALID_DIR", "Output directory missing", null)
-        val url = call.argument<String>("url")
-            ?: return result.error("INVALID_URL", "URL missing", null)
+        val format =
+                call.argument<Map<String, Any>>("format")
+                        ?: return result.error("INVALID_FORMAT", "Format missing", null)
+        val outputDir =
+                call.argument<String>("outputDir")
+                        ?: return result.error("INVALID_DIR", "Output directory missing", null)
+        val url =
+                call.argument<String>("url")
+                        ?: return result.error("INVALID_URL", "URL missing", null)
         val overwrite = call.argument<Boolean>("overwrite") ?: false
         val overrideName = call.argument<String>("overrideName")
-        val taskId = generateTaskId()
 
         thread {
             val title = fetchVideoTitle(url) ?: "unknown_video"
-            val outputPath = generateOutputPath(outputDir, title, format, overrideName)
-            beginDownload(taskId, format, outputPath, url, overwrite, result)
+            val outputPath = generateOutputPath(outputDir, title, format, overrideName, overwrite)
+            beginDownload(taskId = generateTaskId(), format, outputPath, url, overwrite, result)
         }
     }
 
     fun cancelDownload(call: MethodCall, result: MethodChannel.Result) {
-        val taskId = call.argument<String>("taskId")
-            ?: return result.error("INVALID_TASK", "Task ID missing", null)
-        markDownloadCancelled(taskId)
-        downloadProcessor?.sendStateEvent(taskId, DownloadState.CANCELED)
+        val taskId =
+                call.argument<String>("taskId")
+                        ?: return result.error("INVALID_TASK", "Task ID missing", null)
+        activeDownloads[taskId] = false
+        downloadProcessor.cancelDownload(taskId)
         handler.post { result.success(null) }
     }
 
@@ -45,70 +49,79 @@ class DownloadManager(
     private fun generateTaskId(): String = UUID.randomUUID().toString()
 
     private fun beginDownload(
-        taskId: String,
-        format: Map<String, Any>,
-        outputPath: String,
-        url: String,
-        overwrite: Boolean,
-        result: MethodChannel.Result
+            taskId: String,
+            format: Map<String, Any>,
+            outputPath: String,
+            url: String,
+            overwrite: Boolean,
+            result: MethodChannel.Result
     ) {
         activeDownloads[taskId] = true
-        thread {
-            downloadProcessor?.handleDownload(taskId, format, outputPath, url, overwrite)
-        }
+        thread { downloadProcessor.handleDownload(taskId, format, outputPath, url, overwrite) }
         handler.post { result.success(taskId) }
-    }
-
-    private fun markDownloadCancelled(taskId: String) {
-        activeDownloads[taskId] = false
     }
 
     private fun fetchVideoTitle(url: String): String? {
         val python = com.chaquo.python.Python.getInstance()
         val module = python.getModule("yt_dlp_helper")
         val infoJson = module.callAttr("get_video_info", url).toString()
-        val jsonParser = JsonParser()
-        val info = jsonParser.parseJsonMap(infoJson)
-        return info["title"] as? String
+        return JsonParser().parseJsonMap(infoJson)["title"] as? String
     }
 
     private fun generateOutputPath(
-        outputDir: String,
-        title: String,
-        format: Map<String, Any>,
-        overrideName: String?
+            outputDir: String,
+            title: String,
+            format: Map<String, Any>,
+            overrideName: String?,
+            overwrite: Boolean
     ): String {
-        val sanitizedTitle = overrideName ?: title.replace("[^\\w\\s-]".toRegex(), "").trim()
-        val suffix = generateQualitySuffix(format)
+        val sanitizedTitle = (overrideName ?: title).replace("[^\\w\\s-]".toRegex(), "").trim()
+        val suffix =
+                when (format["type"] as String) {
+                    "combined" -> "${format["resolution"]}_${format["bitrate"]}kbps"
+                    "merge" -> {
+                        val video = format["video"] as Map<String, Any>
+                        val audio = format["audio"] as Map<String, Any>
+                        "${video["resolution"]}_${audio["bitrate"]}kbps"
+                    }
+                    "audio_only" -> "${format["bitrate"]}kbps"
+                    else -> throw IllegalArgumentException("Unknown format type: ${format["type"]}")
+                }
         val ext = determineExtension(format)
-        return "$outputDir/${sanitizedTitle}_$suffix.$ext"
-    }
-
-    private fun generateQualitySuffix(format: Map<String, Any>): String {
-        return if (format["type"] == "merge") {
-            val video = format["video"] as Map<String, Any>
-            val audio = format["audio"] as Map<String, Any>
-            "${video["resolution"]}_${audio["bitrate"]}kbps"
-        } else {
-            val resolution = format["resolution"] as String
-            val bitrate = format["bitrate"] as Int
-            "${resolution}_${bitrate}kbps"
+        var filePath = "$outputDir/${sanitizedTitle}_$suffix.$ext"
+        if (!overwrite) {
+            filePath = getUniqueFilePath(filePath)
         }
+        return filePath
     }
 
     private fun determineExtension(format: Map<String, Any>): String {
-        return if (format["type"] == "merge") {
-            "mp4"
-        } else {
-            val downloadAsRaw = format["downloadAsRaw"] as Boolean? ?: true
-            val needsConversion = format["needsConversion"] as Boolean? ?: false
-            val ext = format["ext"] as String
-            if (!downloadAsRaw && needsConversion) {
-                val isVideo = format["vcodec"] != "none" // Check if it's video with sound
-                if (isVideo) "mp4" else "mp3"
-            } else {
-                ext
+        return when (format["type"] as String) {
+            "combined" -> {
+                val downloadAsRaw = format["downloadAsRaw"] as Boolean? ?: true
+                if (!downloadAsRaw && format["needsConversion"] as Boolean) "mp4"
+                else format["ext"] as String
             }
+            "merge" -> "mp4"
+            "audio_only" -> {
+                val downloadAsRaw = format["downloadAsRaw"] as Boolean? ?: true
+                if (!downloadAsRaw && format["needsConversion"] as Boolean) "mp3"
+                else format["ext"] as String
+            }
+            else -> throw IllegalArgumentException("Unknown format type: ${format["type"]}")
         }
+    }
+
+    private fun getUniqueFilePath(basePath: String): String {
+        var path = basePath
+        var counter = 1
+        while (File(path).exists()) {
+            val dir = File(path).parent
+            val name = File(path).nameWithoutExtension
+            val ext = File(path).extension
+            path = "$dir/${name}_($counter).$ext"
+            counter++
+        }
+        return path
     }
 }

@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
 import '../download_provider.dart';
 
-/// Allows users to select a download format and toggle raw download option.
 class FormatSelector extends StatelessWidget {
   final DownloadProvider provider;
   final List<Map<String, dynamic>> formats;
 
-  const FormatSelector({
-    required this.provider,
-    required this.formats,
-    super.key,
-  });
+  const FormatSelector(
+      {required this.provider, required this.formats, super.key});
 
   String _formatDisplayName(Map<String, dynamic> format) {
     final size = _formatSize(format['size'] as int? ?? 0);
@@ -24,30 +20,19 @@ class FormatSelector extends StatelessWidget {
   String _formatSize(int bytes) {
     if (bytes <= 0) return 'Unknown';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    int unitIndex = 0;
-    double size = bytes.toDouble();
-
+    var size = bytes.toDouble();
+    var unitIndex = 0;
     while (size >= 1024 && unitIndex < units.length - 1) {
       size /= 1024;
       unitIndex++;
     }
-
     return '${size.toStringAsFixed(1)} ${units[unitIndex]}';
   }
 
   bool _canToggleConversion() {
-    if (provider.selectedFormat == null) {
-      return false;
-    }
-    final format = provider.selectedFormat!;
-    if (format['type'] == 'merge') {
-      return false; // Merge formats are always mp4, no conversion toggle
-    }
-    final ext = format['ext'] as String? ?? 'unknown';
-    final isVideoWithSound =
-        format['type'] == 'combined' && format['needsConversion'] != null;
-    return (isVideoWithSound && ext != 'mp4') ||
-        (!isVideoWithSound && ext != 'mp3');
+    final format = provider.selectedFormat;
+    if (format == null || format['type'] == 'merge') return false;
+    return format['needsConversion'] as bool? ?? false;
   }
 
   @override
@@ -59,15 +44,14 @@ class FormatSelector extends StatelessWidget {
         DropdownButton<Map<String, dynamic>>(
           value: provider.selectedFormat,
           isExpanded: true,
-          items: formats.map((format) {
-            return DropdownMenuItem(
-              value: format,
-              child: Text(_formatDisplayName(format)),
-            );
-          }).toList(),
-          onChanged: provider.currentTask == null
-              ? provider.updateSelectedFormat
-              : null,
+          items: formats
+              .map((format) => DropdownMenuItem(
+                    value: format,
+                    child: Text(_formatDisplayName(format)),
+                  ))
+              .toList(),
+          onChanged:
+              provider.currentTask == null ? provider.selectFormat : null,
         ),
         if (_canToggleConversion())
           CheckboxListTile(

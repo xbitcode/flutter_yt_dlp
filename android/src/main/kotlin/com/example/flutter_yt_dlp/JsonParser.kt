@@ -1,13 +1,25 @@
 package com.example.flutter_yt_dlp
 
+import com.fasterxml.jackson.databind.ObjectMapper
+
 class JsonParser {
+    private val mapper = ObjectMapper()
+
     fun parseJsonList(json: String): List<Map<String, Any>> {
-        val listType = object : com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Any>>>() {}
-        return com.fasterxml.jackson.databind.ObjectMapper().readValue(json, listType)
+        return mapper.readValue(
+                json,
+                mapper.typeFactory.constructCollectionType(List::class.java, Map::class.java)
+        )
     }
 
     fun parseJsonMap(json: String): Map<String, Any> {
-        val mapType = object : com.fasterxml.jackson.core.type.TypeReference<Map<String, Any>>() {}
-        return com.fasterxml.jackson.databind.ObjectMapper().readValue(json, mapType)
+        return mapper.readValue(
+                json,
+                mapper.typeFactory.constructMapType(
+                        Map::class.java,
+                        String::class.java,
+                        Any::class.java
+                )
+        )
     }
 }

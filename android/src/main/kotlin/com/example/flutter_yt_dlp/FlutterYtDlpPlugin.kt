@@ -1,11 +1,10 @@
 package com.example.flutter_yt_dlp
 
 import android.util.Log
-import androidx.annotation.NonNull
-import io.flutter.embedding.engine.plugins.FlutterPlugin
-import io.flutter.plugin.common.EventChannel
 import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
+import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.plugin.common.EventChannel
 
 class FlutterYtDlpPlugin : FlutterPlugin, EventChannel.StreamHandler {
     private companion object {
@@ -14,15 +13,15 @@ class FlutterYtDlpPlugin : FlutterPlugin, EventChannel.StreamHandler {
     private lateinit var channelManager: ChannelManager
     private lateinit var methodHandler: MethodHandler
 
-    override fun onAttachedToEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+    override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         initializePython(binding)
         setupChannels(binding)
-        Log.i(TAG, "Plugin attached to engine and initialized")
+        Log.i(TAG, "Plugin attached and initialized")
     }
 
-    override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channelManager.clearHandlers()
-        Log.i(TAG, "Plugin detached from engine")
+        Log.i(TAG, "Plugin detached")
     }
 
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -45,9 +44,9 @@ class FlutterYtDlpPlugin : FlutterPlugin, EventChannel.StreamHandler {
         val downloadManager = DownloadManager(channelManager, null)
         val downloadProcessor = DownloadProcessor(channelManager, downloadManager)
         downloadManager.downloadProcessor = downloadProcessor
-        methodHandler = MethodHandler(channelManager)
+        methodHandler = MethodHandler(channelManager, downloadManager, downloadProcessor)
         channelManager.setMethodHandler(methodHandler)
         channelManager.setStreamHandler(this)
-        Log.i(TAG, "Channels and dependencies set up")
+        Log.i(TAG, "Channels configured")
     }
 }

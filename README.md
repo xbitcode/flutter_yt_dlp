@@ -1,149 +1,93 @@
 # flutter_yt_dlp
 
-A Flutter plugin for downloading media using `yt-dlp` and FFmpeg, allowing users to download video and audio with options to keep raw formats or convert to mp4 (video) or mp3 (audio). It supports merging video-only and audio-only formats for flexibility when raw video with sound is unavailable. Primarily developed with assistance from Grok, an AI by xAI.
+A Flutter plugin for downloading and processing media using `yt-dlp` and FFmpeg.
 
 ## Features
 
-- **Fetch Media Formats**: Retrieve video and audio formats by type using a single method with constants (`FormatTypes`).
-- **Download Media**: Download video with sound (`convertToMp4`), audio-only (`convertToMp3`), or merged formats, with explicit conversion flags.
-- **Merging Option**: Combine video-only and audio-only formats into a single mp4 file.
-- **Progress Monitoring**: Real-time updates via event streams.
-- **Cancel Downloads**: Cancel ongoing downloads using task IDs.
-- **Modular Design**: Organized into `models.dart`, `utils.dart`, `format_categorizer.dart`, and `flutter_yt_dlp.dart`.
+- Fetch video metadata, including title, thumbnail, and categorized formats.
+- Categorize formats into:
+  - **Raw Video with Sound**: Combined video and audio formats, convertible to MP4 if not already.
+  - **Merge Formats**: Video-only formats paired with suitable audio-only formats, merged into MP4.
+  - **Raw Audio-Only**: Audio-only formats, convertible to MP3 if not already.
+- Download media with progress and state updates via streams.
+- Support for cancellation and custom output directories.
+- Compatible with Android legacy and scoped storage.
 
-## Platform Support
+## Getting Started
 
-- **Android Only**: Uses Chaquopy, limiting support to Android (minimum SDK 24, Android 7.0+).
+1. Add the plugin to your `pubspec.yaml`:
 
-## Installation
-
-Add to `pubspec.yaml`:
-
-```yaml
+[TRIPLE_BACKTICKS]yaml
 dependencies:
   flutter_yt_dlp: ^0.2.0
-```
+[TRIPLE_BACKTICKS]
 
-Run `flutter pub get`.
+2. Import the plugin:
 
-Or from GitHub:
-
-```yaml
-dependencies:
-  flutter_yt_dlp:
-    git:
-      url: <https://github.com/utoxas/flutter_yt_dlp.git>
-      ref: master
-```
-
-### Android Configuration
-
-**Permissions**: Add to `AndroidManifest.xml`:
-
-```xml
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-```
-
-**Minimum SDK**: Set `minSdk` to 24+ in `android/app/build.gradle`.
-
-**NDK ABI Filters**: Supports `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64`.
-
-## Usage
-
-### Initialize the Plugin
-
-```dart
+[TRIPLE_BACKTICKS]dart
 import 'package:flutter_yt_dlp/flutter_yt_dlp.dart';
+[TRIPLE_BACKTICKS]
 
-void main() {
-  final client = FlutterYtDlpClient();
-  runApp(MyApp(client: client));
-}
-```
+3. Initialize the client:
 
-### Request Permissions
-
-```dart
-import 'package:permission_handler/permission_handler.dart';
-
-Future<bool> requestStoragePermission() async {
-  return await Permission.storage.request().isGranted;
-}
-```
-
-### Fetch Formats
-
-```dart
+[TRIPLE_BACKTICKS]dart
 final client = FlutterYtDlpClient();
-final url = "<https://www.youtube.com/watch?v=dQw4w9WgXcQ>";
-final videoInfo = await client.getVideoInfo(url);
-final videoFormats = await client.getFormats(url, FormatTypes.videoWithSound);
-final mergeFormats = await client.getFormats(url, FormatTypes.merge);
-final audioFormats = await client.getFormats(url, FormatTypes.audioOnly);
-```
+[TRIPLE_BACKTICKS]
 
-### Start a Download
+4. Fetch video info:
 
-```dart
-import 'package:path_provider/path_provider.dart';
+[TRIPLE_BACKTICKS]dart
+final info = await client.getVideoInfo('<https://youtube.com/watch?v=video_id>');
+[TRIPLE_BACKTICKS]
 
-final outputDir = (await getExternalStorageDirectory())!.path;
-final format = videoFormats.first;
+5. Get categorized formats:
+
+[TRIPLE_BACKTICKS]dart
+final combined = await client.getCombinedFormats('<https://youtube.com/watch?v=video_id>');
+final merge = await client.getMergeFormats('<https://youtube.com/watch?v=video_id>');
+final audio = await client.getAudioOnlyFormats('<https://youtube.com/watch?v=video_id>');
+[TRIPLE_BACKTICKS]
+
+6. Start a download:
+
+[TRIPLE_BACKTICKS]dart
 final taskId = await client.startDownload(
-  format: format,
-  outputDir: outputDir,
-  url: url,
-  overwrite: true,
-  overrideName: "MyVideo",
-  convertToMp4: true, // Convert video to mp4
+  format: info['rawVideoWithSoundFormats'][0],
+  outputDir: '/storage/emulated/0/Download',
+  url: '<https://youtube.com/watch?v=video_id>',
+  overwrite: false,
 );
+[TRIPLE_BACKTICKS]
 
+7. Listen to download events:
+
+[TRIPLE_BACKTICKS]dart
 client.getDownloadEvents().listen((event) {
-  if (event['taskId'] != taskId) return;
   if (event['type'] == 'progress') {
-    final progress = DownloadProgress.fromMap(event);
-    print("Progress: ${(progress.percentage * 100).toStringAsFixed(1)}%");
+    print('Progress: ${event['downloaded']} / ${event['total']}');
   } else if (event['type'] == 'state') {
-    final state = DownloadState.values[event['state'] as int];
-    print("State: $state");
+    print('State: ${event['stateName']}');
   }
 });
-```
+[TRIPLE_BACKTICKS]
 
-### Cancel a Download
+8. Cancel a download:
 
-```dart
+[TRIPLE_BACKTICKS]dart
 await client.cancelDownload(taskId);
-```
+[TRIPLE_BACKTICKS]
 
-## Format Types
+## Format Categories
 
-- **FormatTypes.videoWithSound**: Video with sound, convertible to mp4.
-- **FormatTypes.merge**: Video-only and audio-only formats to merge into mp4.
-- **FormatTypes.audioOnly**: Audio-only formats, convertible to mp3.
+- **Raw Video with Sound**: Formats with both video and audio. Non-MP4 formats include a `needsConversion` flag.
+- **Merge Formats**: Video-only formats paired with a high-bitrate audio-only format, merged to MP4.
+- **Raw Audio-Only**: Audio-only formats. Non-MP3 formats include a `needsConversion` flag.
 
 ## Example
 
-See `example/` for a sample app demonstrating the updated API.
+See the `example` directory for a complete demo app.
 
-## Limitations
+## Dependencies
 
-- **Android Only**: No iOS support due to Chaquopy.
-- **App Size**: Chaquopy and FFmpeg increase APK size. Use `flutter build apk --split-per-abi`.
-- **Storage Access**: Android 10+ scoped storage limits direct path access; use `path_provider`.
-
-## Troubleshooting
-
-- **Permission Denied**: Ensure permissions are granted.
-- **No Formats Found**: Verify URL validity with `yt-dlp`.
-- **Download Fails**: Enable logging in `FlutterYtDlpClient` and check logs.
-- **Initialization Errors**: Review console for Python runtime issues.
-
-## Credits
-
-Developed with assistance from Grok by xAI.
-
-## License
-
-MIT License. Respect yt-dlp (Unlicense) and FFmpeg (LGPL) licenses.
+- FFmpeg: `com.arthenica:ffmpeg-kit-full:6.0`
+- yt-dlp: `2025.2.19`
