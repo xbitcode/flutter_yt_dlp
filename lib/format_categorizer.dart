@@ -1,6 +1,4 @@
-// File: lib\format_categorizer.dart
 import 'logger.dart';
-import 'models.dart';
 
 class FormatTypes {
   static const String videoWithSound = 'combined';
@@ -8,7 +6,9 @@ class FormatTypes {
   static const String audioOnly = 'audio_only';
 }
 
+/// Categorizes video formats into types like video with sound, merge, and audio-only.
 class FormatCategorizer {
+  /// Returns a list of formats filtered by the specified type.
   List<Map<String, dynamic>> getFormatsByType(
       List<Map<String, dynamic>> formats, String formatType) {
     final seenFormatIds = <String>{}; // Track unique format IDs

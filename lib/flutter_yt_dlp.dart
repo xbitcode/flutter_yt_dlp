@@ -1,21 +1,23 @@
-// File: lib\flutter_yt_dlp.dart
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'logger.dart';
 import 'models.dart';
-import 'format_categorizer.dart';
+import 'format_categorizer.dart' as categorizer;
 
 class FlutterYtDlpClient {
   static const MethodChannel _channel = MethodChannel('flutter_yt_dlp');
   static const EventChannel _eventChannel =
       EventChannel('flutter_yt_dlp/events');
-  static final FormatCategorizer _categorizer = FormatCategorizer();
+  static final categorizer.FormatCategorizer _categorizer =
+      categorizer.FormatCategorizer();
 
+  /// Initializes the client and sets up logging.
   FlutterYtDlpClient() {
     PluginLogger.setup();
     PluginLogger.info('FlutterYtDlpClient initialized');
   }
 
+  /// Fetches video metadata and categorizes formats.
   Future<Map<String, dynamic>> getVideoInfo(String url,
       {bool forceRefresh = false}) async {
     try {
@@ -134,13 +136,12 @@ class FlutterYtDlpClient {
     List<Map<String, dynamic>> formatMaps;
 
     if (info['formats'] is List) {
-      formatMaps = (info['formats'] as List<dynamic>)
-          .map((f) => _convertToMap(f) as Map<String, dynamic>)
-          .toList();
+      formatMaps =
+          (info['formats'] as List).map((f) => _convertToMap(f)).toList();
     } else if (info['formats'] is Map &&
         (info['formats'] as Map).containsKey('items')) {
-      formatMaps = (info['formats']['items'] as List<dynamic>)
-          .map((f) => _convertToMap(f) as Map<String, dynamic>)
+      formatMaps = (info['formats']['items'] as List)
+          .map((f) => _convertToMap(f))
           .toList();
     } else {
       PluginLogger.warning(
@@ -150,12 +151,12 @@ class FlutterYtDlpClient {
 
     PluginLogger.info('Raw formats: $formatMaps');
 
-    final videoWithSound =
-        _categorizer.getFormatsByType(formatMaps, FormatTypes.videoWithSound);
-    final mergeFormats =
-        _categorizer.getFormatsByType(formatMaps, FormatTypes.merge);
-    final audioOnly =
-        _categorizer.getFormatsByType(formatMaps, FormatTypes.audioOnly);
+    final videoWithSound = _categorizer.getFormatsByType(
+        formatMaps, categorizer.FormatTypes.videoWithSound);
+    final mergeFormats = _categorizer.getFormatsByType(
+        formatMaps, categorizer.FormatTypes.merge);
+    final audioOnly = _categorizer.getFormatsByType(
+        formatMaps, categorizer.FormatTypes.audioOnly);
 
     PluginLogger.info(
         'Categorized formats - VideoWithSound: ${videoWithSound.length}, Merge: ${mergeFormats.length}, AudioOnly: ${audioOnly.length}');

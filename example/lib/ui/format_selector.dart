@@ -1,4 +1,3 @@
-// File: example\lib\ui\format_selector.dart
 import 'package:flutter/material.dart';
 import '../download_provider.dart';
 
@@ -17,7 +16,6 @@ class FormatSelector extends StatelessWidget {
     final size = _formatSize(format['size'] as int? ?? 0);
     if (format['type'] == 'merge') {
       final video = format['video'] as Map<String, dynamic>;
-      final audio = format['audio'] as Map<String, dynamic>;
       return 'Merge: ${video['resolution']} - $size';
     }
     return '${format['resolution']} - ${format['ext']} - $size';
