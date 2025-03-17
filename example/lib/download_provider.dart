@@ -1,3 +1,4 @@
+// File: example\lib\download_provider.dart
 import 'package:flutter/material.dart';
 import 'download_manager.dart';
 import 'dart:io';
@@ -39,7 +40,8 @@ class DownloadProvider extends ChangeNotifier {
     _status = 'Fetching';
     notifyListeners();
     try {
-      _videoInfo = await _downloadManager.getVideoInfo(url, forceRefresh: true);
+      _videoInfo =
+          await _downloadManager.fetchVideoInfo(url); // Fixed method name
       _setDefaultFormat();
       _status = 'Ready';
     } catch (e) {
@@ -63,7 +65,6 @@ class DownloadProvider extends ChangeNotifier {
     );
   }
 
-// File: example\lib\download_provider.dart
   Future<void> startDownload(String url) async {
     if (_selectedFormat == null || _downloadsDir == null) {
       _status = 'Invalid selection or directory';
@@ -74,28 +75,15 @@ class DownloadProvider extends ChangeNotifier {
     notifyListeners();
     try {
       Map<String, dynamic> format = Map<String, dynamic>.from(_selectedFormat!);
-      if (format['type'] == 'merge' && format.containsKey('mergeAudio')) {
-        // Convert to proper merge format expected by Kotlin
+      if (format['type'] == 'merge') {
         format = {
           'type': 'merge',
-          'video': {
-            'formatId': format['formatId'],
-            'ext': format['ext'],
-            'resolution': format['resolution'],
-            'bitrate': format['bitrate'],
-            'size': format['size'],
-            'vcodec': format['vcodec'],
-            'acodec': format['acodec'],
-          },
-          'audio': {
-            'formatId': format['mergeAudio']['formatId'],
-            'ext': 'm4a', // Default for audio, adjust if needed
-            'resolution': 'audio only',
-            'bitrate': 129, // Default from common audio format (e.g., 140)
-            'size': 0, // Unknown size, let native handle
-            'vcodec': 'none',
-            'acodec': 'mp4a.40.2',
-          },
+          'video': format['video'],
+          'audio': format['audio'],
+          'formatId': format['formatId'],
+          'ext': 'mp4',
+          'resolution': format['resolution'],
+          'size': format['size'],
         };
       }
       format['downloadAsRaw'] = _downloadAsRaw;
@@ -127,7 +115,7 @@ class DownloadProvider extends ChangeNotifier {
             format['needsConversion'] != null &&
             format['needsConversion'] as bool
         ? false
-        : true; // Default to false if conversion is needed
+        : true;
     notifyListeners();
   }
 
@@ -143,9 +131,8 @@ class DownloadProvider extends ChangeNotifier {
         _videoInfo?['rawVideoWithSoundFormats'] as List<dynamic>?;
     if (combinedFormats != null && combinedFormats.isNotEmpty) {
       _selectedFormat = combinedFormats[0] as Map<String, dynamic>;
-      _downloadAsRaw = _selectedFormat!['needsConversion'] as bool? ?? false
-          ? false
-          : true; // Default to false if conversion is needed
+      _downloadAsRaw =
+          _selectedFormat!['needsConversion'] as bool? ?? false ? false : true;
     }
   }
 
@@ -159,9 +146,9 @@ class DownloadProvider extends ChangeNotifier {
     } else if (event['type'] == 'state') {
       _status = event['stateName'] as String? ??
           _getStatusFromState(event['state'] as int? ?? 0);
-      if (_status == 'completed' ||
-          _status == 'canceled' ||
-          _status == 'failed') {
+      if (_status == 'Completed' ||
+          _status == 'Canceled' ||
+          _status == 'Failed') {
         _resetDownloadState(_status);
       }
     }

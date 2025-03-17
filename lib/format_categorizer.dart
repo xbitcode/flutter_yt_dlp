@@ -1,76 +1,93 @@
+// File: lib\format_categorizer.dart
+import 'logger.dart';
 import 'models.dart';
 
-/// Categorizes media formats into specific types for download.
+class FormatTypes {
+  static const String videoWithSound = 'combined';
+  static const String merge = 'merge';
+  static const String audioOnly = 'audio_only';
+}
+
 class FormatCategorizer {
-  /// Retrieves formats based on the specified [formatType].
   List<Map<String, dynamic>> getFormatsByType(
       List<Map<String, dynamic>> formats, String formatType) {
-    switch (formatType) {
-      case FormatTypes.videoWithSound:
-        return _getVideoWithSoundFormats(formats);
-      case FormatTypes.merge:
-        return _getMergeFormats(formats);
-      case FormatTypes.audioOnly:
-        return _getAudioOnlyFormats(formats);
-      default:
-        return [];
+    final seenFormatIds = <String>{}; // Track unique format IDs
+    final categorized = <Map<String, dynamic>>[];
+
+    for (final format in formats) {
+      final vcodec = format['vcodec'] as String? ?? 'none';
+      final acodec = format['acodec'] as String? ?? 'none';
+      final formatId = format['formatId'] as String? ?? 'unknown';
+
+      if (seenFormatIds.contains(formatId)) {
+        PluginLogger.info('Skipping duplicate formatId: $formatId');
+        continue;
+      }
+
+      if (formatType == FormatTypes.videoWithSound &&
+          vcodec != 'none' &&
+          acodec != 'none') {
+        categorized.add({
+          'formatId': formatId,
+          'ext': format['ext'] as String? ?? 'unknown',
+          'resolution': format['resolution'] as String? ?? 'unknown',
+          'bitrate': (format['bitrate'] as num?)?.toInt() ?? 0,
+          'size': (format['size'] as num?)?.toInt() ?? 0,
+          'type': FormatTypes.videoWithSound,
+          'needsConversion': (format['ext'] as String?) != 'mp4',
+        });
+        seenFormatIds.add(formatId);
+      } else if (formatType == FormatTypes.audioOnly &&
+          vcodec == 'none' &&
+          acodec != 'none') {
+        categorized.add({
+          'formatId': formatId,
+          'ext': format['ext'] as String? ?? 'unknown',
+          'resolution': format['resolution'] as String? ?? 'unknown',
+          'bitrate': (format['bitrate'] as num?)?.toInt() ?? 0,
+          'size': (format['size'] as num?)?.toInt() ?? 0,
+          'type': FormatTypes.audioOnly,
+          'needsConversion': (format['ext'] as String?) != 'mp3',
+        });
+        seenFormatIds.add(formatId);
+      } else if (formatType == FormatTypes.merge &&
+          vcodec != 'none' &&
+          acodec == 'none') {
+        final audioFormats = formats
+            .where((f) => f['vcodec'] == 'none' && f['acodec'] != 'none')
+            .toList();
+        for (final audio in audioFormats) {
+          final mergeFormatId = '${formatId}+${audio['formatId']}';
+          if (!seenFormatIds.contains(mergeFormatId)) {
+            categorized.add({
+              'type': FormatTypes.merge,
+              'video': {
+                'formatId': formatId,
+                'ext': format['ext'] as String? ?? 'unknown',
+                'resolution': format['resolution'] as String? ?? 'unknown',
+                'bitrate': (format['bitrate'] as num?)?.toInt() ?? 0,
+                'size': (format['size'] as num?)?.toInt() ?? 0,
+              },
+              'audio': {
+                'formatId': audio['formatId'] as String? ?? 'unknown',
+                'ext': audio['ext'] as String? ?? 'unknown',
+                'resolution': audio['resolution'] as String? ?? 'unknown',
+                'bitrate': (audio['bitrate'] as num?)?.toInt() ?? 0,
+                'size': (audio['size'] as num?)?.toInt() ?? 0,
+              },
+              'formatId': mergeFormatId,
+              'ext': 'mp4',
+              'resolution': format['resolution'] as String? ?? 'unknown',
+              'size': ((format['size'] as num?)?.toInt() ?? 0) +
+                  ((audio['size'] as num?)?.toInt() ?? 0),
+            });
+            seenFormatIds.add(mergeFormatId);
+          }
+        }
+      }
     }
-  }
 
-  List<Map<String, dynamic>> _getVideoWithSoundFormats(
-      List<Map<String, dynamic>> formats) {
-    return formats
-        .where((f) => f['vcodec'] != 'none' && f['acodec'] != 'none')
-        .map((f) => CombinedFormat(
-              formatId: f['formatId'] as String?,
-              ext: f['ext'] as String? ?? 'unknown',
-              resolution: f['resolution'] as String? ?? 'unknown',
-              bitrate: (f['tbr'] as num?)?.toInt() ?? 0,
-              size: (f['filesize'] as num?)?.toInt() ?? 0,
-              needsConversion: (f['ext'] as String?) != 'mp4',
-            ).toMap())
-        .toList();
-  }
-
-  List<Map<String, dynamic>> _getMergeFormats(
-      List<Map<String, dynamic>> formats) {
-    final videoOnly = _getVideoOnlyFormats(formats);
-    final audioOnly = _getAudioOnlyFormats(formats);
-    return videoOnly
-        .map((video) => audioOnly.map((audio) => MergeFormat(
-              video: Format.fromMap(video),
-              audio: Format.fromMap(audio.cast<String, dynamic>()),
-            ).toMap()))
-        .expand((e) => e)
-        .toList();
-  }
-
-  List<Map<String, dynamic>> _getAudioOnlyFormats(
-      List<Map<String, dynamic>> formats) {
-    return formats
-        .where((f) => f['vcodec'] == 'none' && f['acodec'] != 'none')
-        .map((f) => CombinedFormat(
-              formatId: f['formatId'] as String?,
-              ext: f['ext'] as String? ?? 'unknown',
-              resolution: f['resolution'] as String? ?? 'unknown',
-              bitrate: (f['tbr'] as num?)?.toInt() ?? 0,
-              size: (f['filesize'] as num?)?.toInt() ?? 0,
-              needsConversion: (f['ext'] as String?) != 'mp3',
-            ).toMap())
-        .toList();
-  }
-
-  List<Map<String, dynamic>> _getVideoOnlyFormats(
-      List<Map<String, dynamic>> formats) {
-    return formats
-        .where((f) => f['vcodec'] != 'none' && f['acodec'] == 'none')
-        .map((f) => Format(
-              formatId: f['formatId'] as String?,
-              ext: f['ext'] as String? ?? 'unknown',
-              resolution: f['resolution'] as String? ?? 'unknown',
-              bitrate: (f['tbr'] as num?)?.toInt() ?? 0,
-              size: (f['filesize'] as num?)?.toInt() ?? 0,
-            ).toMap())
-        .toList();
+    PluginLogger.info('Categorized $formatType formats: ${categorized.length}');
+    return categorized;
   }
 }
