@@ -8,12 +8,14 @@ import java.io.File
 import java.util.UUID
 import kotlin.concurrent.thread
 
-class DownloadManager(
-        private val channelManager: ChannelManager,
-        private val downloadProcessor: DownloadProcessor
-) {
+class DownloadManager(private val channelManager: ChannelManager) {
+    private lateinit var downloadProcessor: DownloadProcessor
     private val activeDownloads = mutableMapOf<String, Boolean>()
     private val handler = Handler(Looper.getMainLooper())
+
+    fun setDownloadProcessor(processor: DownloadProcessor) {
+        downloadProcessor = processor
+    }
 
     fun startDownload(call: MethodCall, result: MethodChannel.Result) {
         val format =

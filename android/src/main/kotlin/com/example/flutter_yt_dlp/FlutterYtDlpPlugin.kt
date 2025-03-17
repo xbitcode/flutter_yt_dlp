@@ -41,9 +41,9 @@ class FlutterYtDlpPlugin : FlutterPlugin, EventChannel.StreamHandler {
 
     private fun setupChannels(binding: FlutterPlugin.FlutterPluginBinding) {
         channelManager = ChannelManager(binding)
-        val downloadManager = DownloadManager(channelManager, null)
+        val downloadManager = DownloadManager(channelManager)
         val downloadProcessor = DownloadProcessor(channelManager, downloadManager)
-        downloadManager.downloadProcessor = downloadProcessor
+        downloadManager.setDownloadProcessor(downloadProcessor)
         methodHandler = MethodHandler(channelManager, downloadManager, downloadProcessor)
         channelManager.setMethodHandler(methodHandler)
         channelManager.setStreamHandler(this)
