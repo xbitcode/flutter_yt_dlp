@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'logger.dart';
 import 'format_categorizer.dart';
+import 'utils.dart'; // Import the updated utils.dart
 
 class FlutterYtDlpClient {
   static const MethodChannel _channel = MethodChannel('flutter_yt_dlp');
@@ -20,7 +21,8 @@ class FlutterYtDlpClient {
       PluginLogger.info('Fetching video info for $url');
       final info = await _channel.invokeMethod(
           'getVideoInfo', {'url': url, 'forceRefresh': forceRefresh});
-      return _categorizeVideoInfo(info as Map);
+      final typedInfo = convertPlatformMap(info); // Convert to typed map
+      return _categorizeVideoInfo(typedInfo);
     } catch (e, stackTrace) {
       PluginLogger.error('Failed to fetch video info for $url', e, stackTrace);
       rethrow;
@@ -89,10 +91,10 @@ class FlutterYtDlpClient {
   Stream<Map<String, dynamic>> getDownloadEvents() {
     return _eventChannel
         .receiveBroadcastStream()
-        .map((event) => event as Map<String, dynamic>);
+        .map((event) => convertPlatformMap(event)); // Convert event data too
   }
 
-  Map<String, dynamic> _categorizeVideoInfo(Map<dynamic, dynamic> info) {
+  Map<String, dynamic> _categorizeVideoInfo(Map<String, dynamic> info) {
     final formatMaps = (info['formats'] as List).cast<Map<String, dynamic>>();
     return {
       'title': info['title'] as String? ?? 'unknown',
