@@ -1,28 +1,30 @@
+// File: lib\flutter_yt_dlp.dart
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'logger.dart';
 import 'models.dart';
 import 'format_categorizer.dart';
 
-/// Client for interacting with the yt-dlp plugin on Android.
 class FlutterYtDlpClient {
   static const MethodChannel _channel = MethodChannel('flutter_yt_dlp');
   static const EventChannel _eventChannel =
       EventChannel('flutter_yt_dlp/events');
   static final FormatCategorizer _categorizer = FormatCategorizer();
 
-  /// Initializes the client and sets up logging.
   FlutterYtDlpClient() {
     PluginLogger.setup();
     PluginLogger.info('FlutterYtDlpClient initialized');
   }
 
-  /// Fetches video metadata for the given [url].
-  Future<Map<String, dynamic>> getVideoInfo(String url) async {
+  Future<Map<String, dynamic>> getVideoInfo(String url,
+      {bool forceRefresh = false}) async {
     try {
-      PluginLogger.info('Fetching video info for URL: $url');
-      final info = await _channel.invokeMethod('getVideoInfo', {'url': url});
-      final categorized = _categorizeVideoInfo(_convertToMap(info));
+      PluginLogger.info(
+          'Fetching video info for URL: $url, forceRefresh: $forceRefresh');
+      final info = await _channel.invokeMethod(
+          'getVideoInfo', {'url': url, 'forceRefresh': forceRefresh});
+      final convertedInfo = _convertToMap(info);
+      final categorized = _categorizeVideoInfo(convertedInfo);
       PluginLogger.info('Video info fetched successfully for $url');
       return categorized;
     } catch (e, stackTrace) {
@@ -31,7 +33,6 @@ class FlutterYtDlpClient {
     }
   }
 
-  /// Retrieves formats of the specified [formatType] for the given [url].
   Future<List<Map<String, dynamic>>> getFormats(
       String url, String formatType) async {
     final info = await getVideoInfo(url);
@@ -39,7 +40,6 @@ class FlutterYtDlpClient {
         info['formats'] as List<Map<String, dynamic>>, formatType);
   }
 
-  /// Fetches the thumbnail URL for the given [url].
   Future<String> getThumbnailUrl(String url) async {
     try {
       PluginLogger.info('Fetching thumbnail URL for: $url');
@@ -54,7 +54,6 @@ class FlutterYtDlpClient {
     }
   }
 
-  /// Starts a download with the specified [format] and options.
   Future<String> startDownload({
     required Map<String, dynamic> format,
     required String outputDir,
@@ -87,7 +86,6 @@ class FlutterYtDlpClient {
     }
   }
 
-  /// Cancels the download identified by [taskId].
   Future<void> cancelDownload(String taskId) async {
     try {
       PluginLogger.info('Cancelling download with taskId: $taskId');
@@ -99,7 +97,6 @@ class FlutterYtDlpClient {
     }
   }
 
-  /// Provides a stream of download events (progress and state).
   Stream<Map<String, dynamic>> getDownloadEvents() {
     PluginLogger.info('Subscribing to download events');
     return _eventChannel.receiveBroadcastStream().map((event) {
@@ -122,19 +119,58 @@ class FlutterYtDlpClient {
     if (data is Map) {
       return data.map((key, value) => MapEntry(
             key.toString(),
-            value is Map ? _convertToMap(value) : value,
+            value is Map
+                ? _convertToMap(value)
+                : (value is List ? value.map(_convertToMap).toList() : value),
           ));
+    } else if (data is List) {
+      return {'items': data.map(_convertToMap).toList()};
     }
+    PluginLogger.warning('Unexpected data type in _convertToMap: $data');
     return {};
   }
 
   Map<String, dynamic> _categorizeVideoInfo(Map<String, dynamic> info) {
-    final rawFormats = info['formats'] as List<dynamic>? ?? [];
-    final formats = rawFormats.map(_convertToMap).toList();
+    List<Map<String, dynamic>> formatMaps;
+
+    if (info['formats'] is List) {
+      formatMaps = (info['formats'] as List<dynamic>)
+          .map((f) => _convertToMap(f) as Map<String, dynamic>)
+          .toList();
+    } else if (info['formats'] is Map &&
+        (info['formats'] as Map).containsKey('items')) {
+      formatMaps = (info['formats']['items'] as List<dynamic>)
+          .map((f) => _convertToMap(f) as Map<String, dynamic>)
+          .toList();
+    } else {
+      PluginLogger.warning(
+          'Formats field is not in expected format: ${info['formats']}');
+      formatMaps = [];
+    }
+
+    PluginLogger.info('Raw formats: $formatMaps');
+
+    final videoWithSound =
+        _categorizer.getFormatsByType(formatMaps, FormatTypes.videoWithSound);
+    final mergeFormats =
+        _categorizer.getFormatsByType(formatMaps, FormatTypes.merge);
+    final audioOnly =
+        _categorizer.getFormatsByType(formatMaps, FormatTypes.audioOnly);
+
+    PluginLogger.info(
+        'Categorized formats - VideoWithSound: ${videoWithSound.length}, Merge: ${mergeFormats.length}, AudioOnly: ${audioOnly.length}');
+    PluginLogger.info(
+        'Sample VideoWithSound: ${videoWithSound.isNotEmpty ? videoWithSound[0] : 'None'}');
+    PluginLogger.info(
+        'Sample Merge: ${mergeFormats.isNotEmpty ? mergeFormats[0] : 'None'}');
+
     return {
       'title': info['title'] as String? ?? 'unknown',
       'thumbnail': info['thumbnail'] as String?,
-      'formats': formats,
+      'formats': formatMaps,
+      'rawVideoWithSoundFormats': videoWithSound,
+      'mergeFormats': mergeFormats,
+      'rawAudioOnlyFormats': audioOnly,
     };
   }
 }

@@ -1,3 +1,4 @@
+// File: example\lib\ui\format_selector.dart
 import 'package:flutter/material.dart';
 import '../download_provider.dart';
 
@@ -13,12 +14,27 @@ class FormatSelector extends StatelessWidget {
   });
 
   String _formatDisplayName(Map<String, dynamic> format) {
+    final size = _formatSize(format['size'] as int? ?? 0);
     if (format['type'] == 'merge') {
       final video = format['video'] as Map<String, dynamic>;
       final audio = format['audio'] as Map<String, dynamic>;
-      return 'Merge: ${video['resolution']} (${audio['bitrate']}kbps)';
+      return 'Merge: ${video['resolution']} - $size';
     }
-    return '${format['resolution']} (${format['bitrate']}kbps) - ${format['ext']}';
+    return '${format['resolution']} - ${format['ext']} - $size';
+  }
+
+  String _formatSize(int bytes) {
+    if (bytes <= 0) return 'Unknown';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    int unitIndex = 0;
+    double size = bytes.toDouble();
+
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+
+    return '${size.toStringAsFixed(1)} ${units[unitIndex]}';
   }
 
   bool _canToggleConversion() {

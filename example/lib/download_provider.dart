@@ -39,9 +39,9 @@ class DownloadProvider extends ChangeNotifier {
     _status = 'Fetching';
     notifyListeners();
     try {
-      _videoInfo = await _downloadManager.fetchVideoInfo(url);
+      _videoInfo = await _downloadManager.getVideoInfo(url, forceRefresh: true);
       _setDefaultFormat();
-      _status = 'Idle';
+      _status = 'Ready';
     } catch (e) {
       debugPrint('Failed to fetch video info: $e');
       _status = 'Failed';
@@ -63,6 +63,7 @@ class DownloadProvider extends ChangeNotifier {
     );
   }
 
+// File: example\lib\download_provider.dart
   Future<void> startDownload(String url) async {
     if (_selectedFormat == null || _downloadsDir == null) {
       _status = 'Invalid selection or directory';
@@ -72,8 +73,32 @@ class DownloadProvider extends ChangeNotifier {
     _status = 'Preparing';
     notifyListeners();
     try {
-      final format = Map<String, dynamic>.from(_selectedFormat!)
-        ..['downloadAsRaw'] = _downloadAsRaw;
+      Map<String, dynamic> format = Map<String, dynamic>.from(_selectedFormat!);
+      if (format['type'] == 'merge' && format.containsKey('mergeAudio')) {
+        // Convert to proper merge format expected by Kotlin
+        format = {
+          'type': 'merge',
+          'video': {
+            'formatId': format['formatId'],
+            'ext': format['ext'],
+            'resolution': format['resolution'],
+            'bitrate': format['bitrate'],
+            'size': format['size'],
+            'vcodec': format['vcodec'],
+            'acodec': format['acodec'],
+          },
+          'audio': {
+            'formatId': format['mergeAudio']['formatId'],
+            'ext': 'm4a', // Default for audio, adjust if needed
+            'resolution': 'audio only',
+            'bitrate': 129, // Default from common audio format (e.g., 140)
+            'size': 0, // Unknown size, let native handle
+            'vcodec': 'none',
+            'acodec': 'mp4a.40.2',
+          },
+        };
+      }
+      format['downloadAsRaw'] = _downloadAsRaw;
       _currentTask = await _downloadManager.startDownload(
         format,
         _downloadsDir!,
