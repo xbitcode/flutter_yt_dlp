@@ -115,13 +115,14 @@ class DownloadManager(private val channelManager: ChannelManager) {
     }
 
     private fun getUniqueFilePath(basePath: String): String {
-        var path = basePath
+        val file = File(basePath)
+        val dir = file.parent
+        val ext = file.extension
+        val baseName = file.nameWithoutExtension.replace("_\\(\\d+\\)$".toRegex(), "")
         var counter = 1
+        var path = basePath
         while (File(path).exists()) {
-            val dir = File(path).parent
-            val name = File(path).nameWithoutExtension
-            val ext = File(path).extension
-            path = "$dir/${name}_($counter).$ext"
+            path = "$dir/${baseName}_($counter).$ext"
             counter++
         }
         return path
