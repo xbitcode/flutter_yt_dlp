@@ -44,6 +44,7 @@ class FileProcessor(
             overwrite: Boolean,
             onProgress: (Long, Long) -> Unit
     ) {
+        Log.i(tag, "Task $taskId: Starting download for $url with format $formatId")
         module.callAttr(
                 "download_format",
                 url,
@@ -52,6 +53,7 @@ class FileProcessor(
                 overwrite,
                 createProgressCallback(taskId, onProgress)
         )
+        Log.i(tag, "Task $taskId: Download call completed")
     }
 
     fun isDownloadActive(taskId: String): Boolean = downloadManager.isDownloadActive(taskId)
@@ -70,7 +72,10 @@ class FileProcessor(
             @Suppress("unused")
             fun onProgress(downloaded: Long, total: Long) {
                 if (isDownloadActive(taskId)) {
+                    Log.i(tag, "Task $taskId: Progress - $downloaded/$total bytes")
                     onProgress(downloaded, total)
+                } else {
+                    Log.w(tag, "Task $taskId: Progress ignored, download inactive")
                 }
             }
         }
