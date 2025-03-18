@@ -1,5 +1,13 @@
 import 'logger.dart';
 
+/// Generates a file path for a downloaded video based on format and options.
+///
+/// [format] The format details of the video.
+/// [outputDir] The directory to save the file in.
+/// [videoTitle] The title of the video.
+/// [overrideName] Optional custom filename to override the title.
+/// [overwrite] Whether to overwrite existing files.
+/// Returns the generated file path.
 String generateOutputPath(
   Map<String, dynamic> format,
   String outputDir,
@@ -51,7 +59,11 @@ String _getUniqueFilePath(String basePath) {
   return basePath;
 }
 
-// New utility function to convert platform channel map to typed map
+/// Converts a platform channel map to a typed Dart map.
+///
+/// [input] The raw map from the platform channel.
+/// Returns a typed map with string keys and dynamic values.
+/// Throws [ArgumentError] if the input is not a map.
 Map<String, dynamic> convertPlatformMap(dynamic input) {
   if (input is! Map) {
     throw ArgumentError('Expected a Map but got ${input.runtimeType}');
@@ -61,7 +73,7 @@ Map<String, dynamic> convertPlatformMap(dynamic input) {
     final key = entry.key;
     if (key is! String) {
       PluginLogger.warning('Non-string key found in platform map: $key');
-      continue; // Skip non-string keys
+      continue;
     }
     final value = entry.value;
     if (value is Map) {

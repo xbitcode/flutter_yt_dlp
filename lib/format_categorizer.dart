@@ -1,12 +1,24 @@
 import 'logger.dart';
 
+/// Defines format type constants for video categorization.
 class FormatTypes {
+  /// Represents combined video and audio formats.
   static const String videoWithSound = 'combined';
+
+  /// Represents formats requiring video and audio merging.
   static const String merge = 'merge';
+
+  /// Represents audio-only formats.
   static const String audioOnly = 'audio_only';
 }
 
+/// Categorizes video formats into predefined types.
 class FormatCategorizer {
+  /// Filters and categorizes formats based on the specified type.
+  ///
+  /// [formats] The list of format maps to categorize.
+  /// [formatType] The type of formats to extract (e.g., videoWithSound, merge, audioOnly).
+  /// Returns a list of categorized format maps.
   List<Map<String, dynamic>> getFormatsByType(
       List<Map<String, dynamic>> formats, String formatType) {
     final categorized = <Map<String, dynamic>>[];
@@ -51,7 +63,7 @@ class FormatCategorizer {
             'formatId': mergeFormatId,
             'ext': 'mp4',
             'resolution': video['resolution'] as String? ?? 'unknown',
-            'size': totalSize, // Set to null if either size is unknown
+            'size': totalSize,
           });
         }
       }
