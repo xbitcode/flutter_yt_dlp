@@ -18,15 +18,12 @@ class DownloadManager(private val channelManager: ChannelManager) {
     }
 
     fun startDownload(call: MethodCall, result: MethodChannel.Result) {
-        val format =
-                call.argument<Map<String, Any>>("format")
-                        ?: return result.error("INVALID_FORMAT", "Format missing", null)
-        val outputDir =
-                call.argument<String>("outputDir")
-                        ?: return result.error("INVALID_DIR", "Output directory missing", null)
-        val url =
-                call.argument<String>("url")
-                        ?: return result.error("INVALID_URL", "URL missing", null)
+        val format = call.argument<Map<String, Any>>("format")
+            ?: return result.error("INVALID_FORMAT", "Format missing", null)
+        val outputDir = call.argument<String>("outputDir")
+            ?: return result.error("INVALID_DIR", "Output directory missing", null)
+        val url = call.argument<String>("url")
+            ?: return result.error("INVALID_URL", "URL missing", null)
         val overwrite = call.argument<Boolean>("overwrite") ?: false
         val overrideName = call.argument<String>("overrideName")
 
@@ -38,9 +35,8 @@ class DownloadManager(private val channelManager: ChannelManager) {
     }
 
     fun cancelDownload(call: MethodCall, result: MethodChannel.Result) {
-        val taskId =
-                call.argument<String>("taskId")
-                        ?: return result.error("INVALID_TASK", "Task ID missing", null)
+        val taskId = call.argument<String>("taskId")
+            ?: return result.error("INVALID_TASK", "Task ID missing", null)
         activeDownloads[taskId] = false
         downloadProcessor.cancelDownload(taskId)
         handler.post { result.success(null) }
@@ -51,12 +47,12 @@ class DownloadManager(private val channelManager: ChannelManager) {
     private fun generateTaskId(): String = UUID.randomUUID().toString()
 
     private fun beginDownload(
-            taskId: String,
-            format: Map<String, Any>,
-            outputPath: String,
-            url: String,
-            overwrite: Boolean,
-            result: MethodChannel.Result
+        taskId: String,
+        format: Map<String, Any>,
+        outputPath: String,
+        url: String,
+        overwrite: Boolean,
+        result: MethodChannel.Result
     ) {
         activeDownloads[taskId] = true
         thread { downloadProcessor.handleDownload(taskId, format, outputPath, url, overwrite) }
@@ -71,24 +67,15 @@ class DownloadManager(private val channelManager: ChannelManager) {
     }
 
     private fun generateOutputPath(
-            outputDir: String,
-            title: String,
-            format: Map<String, Any>,
-            overrideName: String?,
-            overwrite: Boolean
+        outputDir: String,
+        title: String,
+        format: Map<String, Any>,
+        overrideName: String?,
+        overwrite: Boolean
     ): String {
         val sanitizedTitle = (overrideName ?: title).replace("[^\\w\\s-]".toRegex(), "").trim()
-        val suffix =
-                when (format["type"] as String) {
-                    "combined" -> "${format["resolution"]}_${format["bitrate"]}kbps"
-                    "merge" -> {
-                        val video = format["video"] as Map<String, Any>
-                        val audio = format["audio"] as Map<String, Any>
-                        "${video["resolution"]}_${audio["bitrate"]}kbps"
-                    }
-                    "audio_only" -> "${format["bitrate"]}kbps"
-                    else -> throw IllegalArgumentException("Unknown format type: ${format["type"]}")
-                }
+        android.util.Log.d("DownloadManager", "Format data: $format")
+        val suffix = generateFileSuffix(format)
         val ext = determineExtension(format)
         var filePath = "$outputDir/${sanitizedTitle}_$suffix.$ext"
         if (!overwrite) {
@@ -97,20 +84,66 @@ class DownloadManager(private val channelManager: ChannelManager) {
         return filePath
     }
 
-    private fun determineExtension(format: Map<String, Any>): String {
-        return when (format["type"] as String) {
+    private fun generateFileSuffix(format: Map<String, Any>): String {
+        val hasVideo = format["vcodec"] as? String != "none"
+        val hasAudio = format["acodec"] as? String != "none"
+        val formatType = format["type"] as? String ?: when {
+            hasVideo && hasAudio -> "combined"
+            hasVideo -> "merge"
+            hasAudio -> "audio_only"
+            else -> "unknown"
+        }
+        android.util.Log.d("DownloadManager", "Inferred format type: $formatType")
+
+        return when (formatType) {
             "combined" -> {
-                val downloadAsRaw = format["downloadAsRaw"] as Boolean? ?: true
-                if (!downloadAsRaw && format["needsConversion"] as Boolean) "mp4"
-                else format["ext"] as String
+                val resolution = format["resolution"] as? String ?: "unknown"
+                val bitrate = format["bitrate"]?.toString() ?: "0"
+                "${resolution}_${bitrate}kbps"
+            }
+            "merge" -> {
+                val video = format["video"] as? Map<String, Any>
+                    ?: throw IllegalArgumentException("Video data missing in merge format")
+                val audio = format["audio"] as? Map<String, Any>
+                    ?: throw IllegalArgumentException("Audio data missing in merge format")
+                val resolution = video["resolution"] as? String ?: "unknown"
+                val bitrate = audio["bitrate"]?.toString() ?: "0"
+                "${resolution}_${bitrate}kbps"
+            }
+            "audio_only" -> {
+                val bitrate = format["bitrate"]?.toString() ?: "0"
+                "${bitrate}kbps"
+            }
+            else -> {
+                android.util.Log.w("DownloadManager", "Unknown format type: $formatType, using default suffix")
+                "unknown"
+            }
+        }
+    }
+
+    private fun determineExtension(format: Map<String, Any>): String {
+        val hasVideo = format["vcodec"] as? String != "none"
+        val hasAudio = format["acodec"] as? String != "none"
+        val formatType = format["type"] as? String ?: when {
+            hasVideo && hasAudio -> "combined"
+            hasVideo -> "merge"
+            hasAudio -> "audio_only"
+            else -> "unknown"
+        }
+
+        return when (formatType) {
+            "combined" -> {
+                val downloadAsRaw = format["downloadAsRaw"] as? Boolean ?: true
+                if (!downloadAsRaw && format["needsConversion"] as? Boolean == true) "mp4"
+                else format["ext"] as? String ?: "mp4"
             }
             "merge" -> "mp4"
             "audio_only" -> {
-                val downloadAsRaw = format["downloadAsRaw"] as Boolean? ?: true
-                if (!downloadAsRaw && format["needsConversion"] as Boolean) "mp3"
-                else format["ext"] as String
+                val downloadAsRaw = format["downloadAsRaw"] as? Boolean ?: true
+                if (!downloadAsRaw && format["needsConversion"] as? Boolean == true) "mp3"
+                else format["ext"] as? String ?: "m4a"
             }
-            else -> throw IllegalArgumentException("Unknown format type: ${format["type"]}")
+            else -> format["ext"] as? String ?: "unknown"
         }
     }
 
