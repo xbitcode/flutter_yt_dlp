@@ -1,39 +1,34 @@
 import 'package:logging/logging.dart';
 
-/// A utility class for logging plugin activities.
+/// Manages logging for the Flutter YouTube Downloader plugin.
 class PluginLogger {
   static final Logger _logger = Logger('FlutterYtDlpPlugin');
   static bool _isSetup = false;
+  static bool _isInitializing = false;
 
-  /// Sets up the logging system with detailed output.
-  ///
-  /// Configures the root logger to capture all levels and directs log records
-  /// to the plugin's logger instance after initialization.
+  /// Configures the logging system to capture all log levels.
   static void setup() {
-    if (_isSetup) return;
+    if (_isSetup || _isInitializing) return;
+    _isInitializing = true; // Prevent reentrant calls during setup
     Logger.root.level = Level.ALL;
-    Logger.root.onRecord.listen((record) {
-      _logger.info('${record.level.name}: ${record.time}: ${record.message}');
-    });
+    Logger.root.onRecord.listen(_handleLogRecord);
     _isSetup = true;
-    // Removed _logSetupMessage() to prevent recursion during setup
+    _isInitializing = false;
+    // No initial log to avoid recursion; rely on first client log
   }
 
-  /// Logs an informational message.
-  ///
-  /// [message] The message to log.
+  /// Logs an info-level message.
   static void info(String message) => _logger.info(message);
 
-  /// Logs a warning message.
-  ///
-  /// [message] The warning to log.
+  /// Logs a warning-level message.
   static void warning(String message) => _logger.warning(message);
 
-  /// Logs an error message with optional error and stack trace.
-  ///
-  /// [message] The error message to log.
-  /// [error] The associated error object, if any.
-  /// [stackTrace] The stack trace, if any.
+  /// Logs an error-level message with optional details.
   static void error(String message, [Object? error, StackTrace? stackTrace]) =>
       _logger.severe(message, error, stackTrace);
+
+  static void _handleLogRecord(LogRecord record) {
+    if (_isInitializing) return; // Skip logs during setup
+    _logger.info('${record.level.name}: ${record.time}: ${record.message}');
+  }
 }
