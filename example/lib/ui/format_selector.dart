@@ -9,7 +9,7 @@ class FormatSelector extends StatelessWidget {
       {required this.provider, required this.formats, super.key});
 
   String _formatDisplayName(Map<String, dynamic> format) {
-    final size = _formatSize(format['size'] as int? ?? 0);
+    final size = _formatSize(format['size'] as int?);
     if (format['type'] == 'merge') {
       final video = format['video'] as Map<String, dynamic>;
       return 'Merge: ${video['resolution']} - $size';
@@ -17,8 +17,8 @@ class FormatSelector extends StatelessWidget {
     return '${format['resolution']} - ${format['ext']} - $size';
   }
 
-  String _formatSize(int bytes) {
-    if (bytes <= 0) return 'Unknown';
+  String _formatSize(int? bytes) {
+    if (bytes == null || bytes <= 0) return 'Unknown';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
     var size = bytes.toDouble();
     var unitIndex = 0;

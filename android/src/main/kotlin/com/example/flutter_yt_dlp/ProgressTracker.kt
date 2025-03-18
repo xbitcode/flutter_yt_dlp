@@ -14,5 +14,6 @@ class ProgressTracker(val totalSize: Long) {
         downloadedAudio = downloaded
     }
 
+    // Returns the sum of downloaded video and audio bytes
     @Synchronized fun getCombinedDownloaded(): Long = downloadedVideo + downloadedAudio
 }

@@ -40,6 +40,10 @@ class FormatCategorizer {
       for (final video in videoOnly) {
         final mergeFormatId = '${video['formatId']}+${bestAudio['formatId']}';
         if (seenFormatIds.add(mergeFormatId)) {
+          final videoSize = video['size'] as int? ?? 0;
+          final audioSize = bestAudio['size'] as int? ?? 0;
+          final totalSize =
+              (videoSize > 0 && audioSize > 0) ? videoSize + audioSize : null;
           categorized.add({
             'type': FormatTypes.merge,
             'video': video,
@@ -47,8 +51,7 @@ class FormatCategorizer {
             'formatId': mergeFormatId,
             'ext': 'mp4',
             'resolution': video['resolution'] as String? ?? 'unknown',
-            'size':
-                (video['size'] as int? ?? 0) + (bestAudio['size'] as int? ?? 0),
+            'size': totalSize, // Set to null if either size is unknown
           });
         }
       }

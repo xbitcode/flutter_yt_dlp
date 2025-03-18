@@ -105,7 +105,7 @@ class DownloadProvider extends ChangeNotifier {
     if (event['type'] == 'progress') {
       final downloaded = (event['downloaded'] as num).toDouble();
       final total = (event['total'] as num).toDouble();
-      _progress = total > 0 ? downloaded / total : 0.0;
+      _progress = total > 0 ? downloaded / total : 0.0; // Sum-based progress
       _status = 'Downloading';
     } else if (event['type'] == 'state') {
       _status = event['stateName'] as String;
