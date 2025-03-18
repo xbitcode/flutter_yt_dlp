@@ -8,14 +8,11 @@ from io import StringIO
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-
 class LogCapture(StringIO):
     """Captures yt-dlp output for logging."""
-
     def write(self, message):
         if message.strip():
             logger.debug(f"yt-dlp output: {message.strip()}")
-
 
 def extract_format_info(format_data):
     """Extracts format info from yt-dlp data."""
@@ -34,7 +31,6 @@ def extract_format_info(format_data):
         "vcodec": format_data.get("vcodec", "none"),
         "acodec": format_data.get("acodec", "none"),
     }
-
 
 def get_video_info(url):
     """Fetches video metadata and formats."""
@@ -57,7 +53,6 @@ def get_video_info(url):
         logger.error(f"Error fetching info for {url}: {str(e)}")
         return json.dumps({"title": "unknown_video", "thumbnail": None, "formats": []})
 
-
 def download_format(url, format_id, output_path, overwrite, progress_callback):
     """Downloads a specific format with progress updates."""
     log_capture = LogCapture()
@@ -65,13 +60,13 @@ def download_format(url, format_id, output_path, overwrite, progress_callback):
     def progress_hook(d):
         status = d.get("status")
         if status == "downloading":
-            downloaded = d.get("downloaded_bytes", 0)
-            total = d.get("total_bytes", d.get("total_bytes_estimate", 0) or 0)
+            downloaded = int(d.get("downloaded_bytes", 0))  # Convert to int
+            total = int(d.get("total_bytes", d.get("total_bytes_estimate", 0) or 0))  # Convert to int
             if total > 0:
                 logger.info(f"Progress for {url}: {downloaded}/{total} bytes")
                 progress_callback.onProgress(downloaded, total)
         elif status == "finished":
-            total = d.get("total_bytes", d.get("total_bytes_estimate", 0) or 0)
+            total = int(d.get("total_bytes", d.get("total_bytes_estimate", 0) or 0))  # Convert to int
             logger.info(f"Download finished for {url}: {total} bytes")
             progress_callback.onProgress(total, total)
         elif status == "error":
