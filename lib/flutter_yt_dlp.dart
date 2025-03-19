@@ -11,14 +11,9 @@ class FlutterYtDlpClient {
       EventChannel('flutter_yt_dlp/events');
   final FormatCategorizer _categorizer = FormatCategorizer();
 
-  /// Constructs the client without immediate logging to avoid stream conflicts.
+  /// Constructs the client, setting up logging lazily on first use.
   FlutterYtDlpClient() {
-    PluginLogger.ensureSetup(); // Safely sets up logging without recursion
-  }
-
-  /// Explicitly initializes the client, logging its readiness.
-  Future<void> initialize() async {
-    PluginLogger.info('FlutterYtDlpClient initialized');
+    PluginLogger.ensureSetup(); // Logging setup is lazy and safe
   }
 
   /// Fetches video information for the given URL, including formats and metadata.
