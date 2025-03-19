@@ -2,14 +2,39 @@
 
 All notable changes to the `flutter_yt_dlp` plugin will be documented in this file.
 
-## [0.2.0] - 2025-03-17
+## [0.2.5] - 2025-03-19
 
-- Refactored plugin to follow clean code and OOP principles.
-- Enhanced format categorization with conversion flags for MP4 and MP3.
-- Improved download handling with detailed states (Preparing, Downloading, Converting, Merging).
-- Updated file naming with resolution/bitrate suffixes and incremental naming.
-- Ensured compatibility with Android legacy and scoped storage.
-- Added comprehensive documentation and updated example app.
+### Added
+
+- **Modular Android Architecture**: Split `FlutterYtDlpPlugin.kt` into multiple Kotlin classes (`ChannelManager`, `DownloadManager`, `DownloadProcessor`, etc.) for improved maintainability.
+- **Simplified Python Script**: Replaced multiple format-specific functions in `yt_dlp_helper.py` with `get_video_info` and `download_format`, streamlining native integration.
+- **Format Categorization**: Added `format_categorizer.dart` to categorize formats on the Dart side into `rawVideoWithSoundFormats`, `mergeFormats`, and `rawAudioOnlyFormats`.
+- **Enhanced Logging**: Introduced `logger.dart` for dedicated, configurable logging across the plugin.
+- **New API Methods**: Added `getVideoInfo`, `getCombinedFormats`, `getMergeFormats`, `getAudioOnlyFormats`, and `getThumbnailUrl` to `FlutterYtDlpClient`.
+- **Download Options**: Support for `overrideName` and `downloadAsRaw` in `startDownload` for custom filenames and raw format preservation.
+- **Comprehensive Example App**: Revamped `example/` with a full UI, including format selection, progress tracking, and provider-based state management.
+
+### Changed
+
+- **API Overhaul**: Replaced specific format-fetching methods (e.g., `getAllRawVideoWithSoundFormats`) with a unified `getVideoInfo` approach, requiring users to access formats via the returned map (breaking change).
+- **Plugin Class**: Renamed `FlutterYtDlpPlugin` to `FlutterYtDlpClient` with a simplified interface.
+- **Model Simplification**: Removed `Format`, `CombinedFormat`, and `MergeFormat` classes; formats are now dynamic maps processed by `FormatCategorizer`.
+- **Android FFmpeg Integration**: Shifted FFmpeg inclusion from `chaquopy.extractPackages` to `dependencies.implementation` in `android/build.gradle` (functionality unchanged).
+- **Logging**: Moved logging setup from `utils.dart` to `logger.dart` for better encapsulation, reverting `print` usage from 0.1.4 to proper logging.
+
+### Fixed
+
+- **General Improvements**: Refactoring likely resolved minor bugs and performance issues from the monolithic 0.1.4 structure, though specific fixes aren’t detailed.
+
+### Breaking Changes
+
+- **API Changes**: Users must update code to use `getVideoInfo` and access categorized formats instead of old methods.
+- **Download Method**: `startDownload` now requires a format map from `getVideoInfo` results and supports new parameters.
+- **Model Removal**: Direct use of format classes is no longer possible; adapt to dynamic maps.
+
+### Notes
+
+- Refer to the updated [README.md](README.md) for new usage instructions and the [example app](example/lib/main.dart) for practical guidance.
 
 ## [0.1.4] - 2025-03-13
 
