@@ -11,17 +11,17 @@ class FlutterYtDlpClient {
       EventChannel('flutter_yt_dlp/events');
   final FormatCategorizer _categorizer = FormatCategorizer();
 
-  /// Initializes the client and sets up logging.
+  /// Constructs the client without immediate logging to avoid stream conflicts.
   FlutterYtDlpClient() {
-    PluginLogger.setup();
+    PluginLogger.ensureSetup(); // Safely sets up logging without recursion
+  }
+
+  /// Explicitly initializes the client, logging its readiness.
+  Future<void> initialize() async {
     PluginLogger.info('FlutterYtDlpClient initialized');
   }
 
   /// Fetches video information for the given URL, including formats and metadata.
-  ///
-  /// [url] The video URL to fetch info for.
-  /// [forceRefresh] If true, bypasses cache and fetches fresh data. Defaults to false.
-  /// Returns a map with video details or throws an exception on failure.
   Future<Map<String, dynamic>> getVideoInfo(String url,
       {bool forceRefresh = false}) async {
     try {
@@ -37,36 +37,24 @@ class FlutterYtDlpClient {
   }
 
   /// Retrieves a list of combined video-with-sound formats for the given URL.
-  ///
-  /// [url] The video URL to fetch formats for.
-  /// Returns a list of format maps or throws an exception on failure.
   Future<List<Map<String, dynamic>>> getCombinedFormats(String url) async {
     final info = await getVideoInfo(url);
     return info['rawVideoWithSoundFormats'] as List<Map<String, dynamic>>;
   }
 
   /// Retrieves a list of merge formats (separate video and audio) for the given URL.
-  ///
-  /// [url] The video URL to fetch formats for.
-  /// Returns a list of format maps or throws an exception on failure.
   Future<List<Map<String, dynamic>>> getMergeFormats(String url) async {
     final info = await getVideoInfo(url);
     return info['mergeFormats'] as List<Map<String, dynamic>>;
   }
 
   /// Retrieves a list of audio-only formats for the given URL.
-  ///
-  /// [url] The video URL to fetch formats for.
-  /// Returns a list of format maps or throws an exception on failure.
   Future<List<Map<String, dynamic>>> getAudioOnlyFormats(String url) async {
     final info = await getVideoInfo(url);
     return info['rawAudioOnlyFormats'] as List<Map<String, dynamic>>;
   }
 
   /// Fetches the thumbnail URL for the given video URL.
-  ///
-  /// [url] The video URL to fetch the thumbnail for.
-  /// Returns the thumbnail URL as a string or throws an exception on failure.
   Future<String> getThumbnailUrl(String url) async {
     try {
       PluginLogger.info('Fetching thumbnail for $url');
@@ -79,13 +67,6 @@ class FlutterYtDlpClient {
   }
 
   /// Starts a download for the specified video format and URL.
-  ///
-  /// [format] The format details for the download.
-  /// [outputDir] The directory to save the downloaded file.
-  /// [url] The video URL to download.
-  /// [overwrite] Whether to overwrite existing files. Defaults to false.
-  /// [overrideName] Optional custom filename to use instead of the video title.
-  /// Returns the task ID of the download or throws an exception on failure.
   Future<String> startDownload({
     required Map<String, dynamic> format,
     required String outputDir,
@@ -110,9 +91,6 @@ class FlutterYtDlpClient {
   }
 
   /// Cancels a download in progress using the given task ID.
-  ///
-  /// [taskId] The ID of the download task to cancel.
-  /// Throws an exception if cancellation fails.
   Future<void> cancelDownload(String taskId) async {
     try {
       PluginLogger.info('Cancelling download $taskId');
@@ -124,8 +102,6 @@ class FlutterYtDlpClient {
   }
 
   /// Provides a stream of download events (progress, state changes).
-  ///
-  /// Returns a stream of event maps with download status updates.
   Stream<Map<String, dynamic>> getDownloadEvents() {
     return _eventChannel
         .receiveBroadcastStream()
@@ -133,9 +109,6 @@ class FlutterYtDlpClient {
   }
 
   /// Categorizes video formats into combined, merge, and audio-only types.
-  ///
-  /// [info] The raw video info map containing format data.
-  /// Returns a map with categorized format lists.
   Map<String, dynamic> _categorizeVideoInfo(Map<String, dynamic> info) {
     final formatMaps = (info['formats'] as List).cast<Map<String, dynamic>>();
     return {

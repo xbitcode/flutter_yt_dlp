@@ -20,18 +20,20 @@ class _DownloadScreenState extends State<DownloadScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeProvider();
+  }
+
+  void _initializeProvider() {
     final provider = Provider.of<DownloadProvider>(context, listen: false);
     _requestStoragePermission().then((_) => provider.initializeDownloadsDir());
     provider.listenToDownloadEvents();
   }
 
   Future<void> _requestStoragePermission() async {
-    if (!await Permission.storage.request().isGranted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Storage permission required')),
-        );
-      }
+    if (!await Permission.storage.request().isGranted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Storage permission required')),
+      );
     }
   }
 
@@ -46,40 +48,70 @@ class _DownloadScreenState extends State<DownloadScreen> {
   @override
   Widget build(BuildContext context) {
     return Consumer<DownloadProvider>(
-      builder: (context, provider, _) {
-        final formats = _getAllFormats(provider.videoInfo);
-        return Scaffold(
-          appBar: AppBar(title: const Text('Download Screen')),
-          body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  UrlInput(controller: _urlController, provider: provider),
-                  const SizedBox(height: 16),
-                  if (provider.videoInfo != null) ...[
-                    Text('Title: ${provider.videoInfo!['title']}'),
-                    const SizedBox(height: 8),
-                    if (provider.videoInfo!['thumbnail'] != null)
-                      Image.network(provider.videoInfo!['thumbnail'],
-                          height: 150, fit: BoxFit.cover),
-                  ],
-                  const SizedBox(height: 16),
-                  Text('Status: ${provider.status}'),
-                  LinearProgressIndicator(value: provider.progress),
-                  const SizedBox(height: 16),
-                  if (formats.isNotEmpty)
-                    FormatSelector(provider: provider, formats: formats),
-                  const SizedBox(height: 16),
-                  DownloadControls(
-                      provider: provider, url: _urlController.text),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+      builder: (context, provider, _) => _buildScaffold(context, provider),
     );
+  }
+
+  Widget _buildScaffold(BuildContext context, DownloadProvider provider) {
+    final formats = _getAllFormats(provider.videoInfo);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Download Screen')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: _buildContent(provider, formats),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+      DownloadProvider provider, List<Map<String, dynamic>> formats) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        UrlInput(controller: _urlController, provider: provider),
+        const SizedBox(height: 16),
+        if (provider.videoInfo != null) ...[
+          _buildVideoTitle(provider),
+          const SizedBox(height: 8),
+          _buildThumbnail(provider),
+          const SizedBox(height: 16),
+          FormatSelector(formats: formats, provider: provider),
+          const SizedBox(height: 16),
+          DownloadControls(provider: provider, url: _urlController.text),
+          const SizedBox(height: 16),
+          _buildProgressIndicator(provider),
+          const SizedBox(height: 8),
+          _buildStatusText(provider),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildVideoTitle(DownloadProvider provider) {
+    return Text('Title: ${provider.videoInfo!['title']}');
+  }
+
+  Widget _buildThumbnail(DownloadProvider provider) {
+    final thumbnailUrl = provider.videoInfo!['thumbnail'] as String?;
+    return thumbnailUrl != null
+        ? Image.network(
+            thumbnailUrl,
+            height: 150,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                const Text('Failed to load thumbnail'),
+          )
+        : const SizedBox.shrink();
+  }
+
+  Widget _buildProgressIndicator(DownloadProvider provider) {
+    return LinearProgressIndicator(value: provider.progress);
+  }
+
+  Widget _buildStatusText(DownloadProvider provider) {
+    return Text('Status: ${provider.status}');
   }
 }

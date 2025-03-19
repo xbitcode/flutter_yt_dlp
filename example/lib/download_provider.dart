@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'download_manager.dart';
 
 class DownloadProvider extends ChangeNotifier {
-  final DownloadManager _manager = DownloadManager();
+  final DownloadManager _manager;
   Map<String, dynamic>? _videoInfo;
   String? _currentTask;
   double _progress = 0.0;
@@ -11,6 +11,8 @@ class DownloadProvider extends ChangeNotifier {
   Map<String, dynamic>? _selectedFormat;
   bool _downloadAsRaw = true;
   String? _downloadsDir;
+
+  DownloadProvider() : _manager = DownloadManager();
 
   Map<String, dynamic>? get videoInfo => _videoInfo;
   String? get currentTask => _currentTask;
@@ -105,7 +107,7 @@ class DownloadProvider extends ChangeNotifier {
     if (event['type'] == 'progress') {
       final downloaded = (event['downloaded'] as num).toDouble();
       final total = (event['total'] as num).toDouble();
-      _progress = total > 0 ? downloaded / total : 0.0; // Sum-based progress
+      _progress = total > 0 ? downloaded / total : 0.0;
       _status = 'Downloading';
     } else if (event['type'] == 'state') {
       _status = event['stateName'] as String;
