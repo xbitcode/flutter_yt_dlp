@@ -36,6 +36,7 @@ def get_video_info(url):
     """Fetches video metadata and formats."""
     ydl_opts = {
         "quiet": True,
+        "cachedir": False,
         #"format": "bestvideo+bestaudio/best",
         "logger": logger,
     }
@@ -81,6 +82,7 @@ def download_format(url, format_id, output_path, overwrite, progress_callback):
         "quiet": True,              # Allow yt-dlp output for debugging
         "logger": logger,
         "verbose": False,             # Enable verbose output for debugging
+        "cachedir": False,
         "logtostderr": True,         # Ensure logs go to stderr
         "errfile": log_capture,      # Capture errors
         "outfile": log_capture,      # Capture output
