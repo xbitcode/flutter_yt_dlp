@@ -14,46 +14,67 @@ class LogCapture(StringIO):
         if message.strip():
             logger.debug(f"yt-dlp output: {message.strip()}")
 
-def extract_format_info(format_data):
-    """Extracts format info from yt-dlp data."""
+def extract_format_info(format_data, video_duration=None):
+    """Extracts format info from yt-dlp data, with duration-based size fallback."""
+    # Base size from yt-dlp (exact or approximate)
+    raw_size = format_data.get("filesize") or format_data.get("filesize_approx")
+    try:
+        size = int(raw_size)
+    except (TypeError, ValueError):
+        size = 0
+
+    # Fallback: estimate via average bitrate × duration
+    if size == 0 and video_duration:
+        tbr = format_data.get("tbr")  # in Kbps
+        if tbr:
+            # (tbr kilobits per second → bytes per second) × duration (seconds)
+            size = int((tbr * 1000 / 8) * video_duration)
+
     return {
-        "formatId": format_data.get("format_id", "unknown"),
-        "ext": format_data.get("ext", "unknown"),
+        "formatId":  format_data.get("format_id", "unknown"),
+        "ext":       format_data.get("ext", "unknown"),
         "resolution": (
             format_data.get("resolution", "unknown")
             if format_data.get("vcodec", "none") != "none"
             else "audio only"
         ),
-        "bitrate": int(format_data.get("tbr", 0) or 0),
-        "size": int(
-            format_data.get("filesize", 0) or format_data.get("filesize_approx", 0) or 0
-        ),
-        "vcodec": format_data.get("vcodec", "none"),
-        "acodec": format_data.get("acodec", "none"),
+        "bitrate":  int(format_data.get("tbr", 0) or 0),
+        "size":     size,
+        "vcodec":   format_data.get("vcodec", "none"),
+        "acodec":   format_data.get("acodec", "none"),
     }
+
 
 def get_video_info(url):
     """Fetches video metadata and formats."""
     ydl_opts = {
-        "quiet": True,
-        "cachedir": False,
-        #"format": "bestvideo+bestaudio/best",
-        "user_agent": "Mozilla/6.0 (compatible; MyDownloader/1.0)",
-        "logger": logger,
+        "quiet":     True,
+        "cachedir":  False,
+        # "format":  "bestvideo+bestaudio/best",
+        "user_agent":"Mozilla/6.0 (compatible; MyDownloader/1.0)",
+        "logger":    logger,
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
+            duration = info.get("duration")  # in seconds
             video_info = {
-                "title": info.get("title", "unknown_video"),
+                "title":     info.get("title", "unknown_video"),
                 "thumbnail": info.get("thumbnail"),
-                "formats": [extract_format_info(f) for f in info.get("formats", [])],
+                "formats":   [
+                    extract_format_info(fmt, video_duration=duration)
+                    for fmt in info.get("formats", [])
+                ],
             }
             logger.info(f"Fetched info for {url}: {len(video_info['formats'])} formats")
             return json.dumps(video_info)
     except Exception as e:
-        logger.error(f"Error fetching info for {url}: {str(e)}")
-        return json.dumps({"title": "unknown_video", "thumbnail": None, "formats": []})
+        logger.error(f"Error fetching info for {url}: {e}")
+        return json.dumps({
+            "title":     "unknown_video",
+            "thumbnail": None,
+            "formats":   []
+        })
 
 def download_format(url, format_id, output_path, overwrite, progress_callback):
     """Downloads a specific format with progress updates."""
