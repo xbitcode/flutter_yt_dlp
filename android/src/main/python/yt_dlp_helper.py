@@ -90,19 +90,19 @@ def download_format(url, format_id, output_path, overwrite, progress_callback):
         "concurrent_fragments": 16,   # Download up to 16 fragments in parallel
     }
     
-    ydl_opts2Backup = {
-        "format": format_id,
-        "outtmpl": output_path,
-        "progress_hooks": [progress_hook],
-        "force_overwrites": overwrite,
-        "noprogress": False,
-        "quiet": False,  # Allow yt-dlp output for debugging
-        "logger": logger,
-        "verbose": True,  # Enable verbose output for debugging
-        "logtostderr": True,  # Ensure logs go to stderr
-        "errfile": log_capture,  # Capture errors
-        "outfile": log_capture,  # Capture output
-    }
+    # ydl_opts = {
+    #     "format": format_id,
+    #     "outtmpl": output_path,
+    #     "progress_hooks": [progress_hook],
+    #     "force_overwrites": overwrite,
+    #     "noprogress": False,
+    #     "quiet": False,  # Allow yt-dlp output for debugging
+    #     "logger": logger,
+    #     "verbose": True,  # Enable verbose output for debugging
+    #     "logtostderr": True,  # Ensure logs go to stderr
+    #     "errfile": log_capture,  # Capture errors
+    #     "outfile": log_capture,  # Capture output
+    # }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             logger.info(f"Starting download: {url} format {format_id} to {output_path}")
