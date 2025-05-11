@@ -36,7 +36,7 @@ def get_video_info(url):
     """Fetches video metadata and formats."""
     ydl_opts = {
         "quiet": True,
-        "format": "bestvideo+bestaudio/best",
+        #"format": "bestvideo+bestaudio/best",
         "logger": logger,
     }
     try:
