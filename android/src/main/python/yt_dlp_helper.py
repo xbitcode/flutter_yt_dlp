@@ -76,6 +76,22 @@ def download_format(url, format_id, output_path, overwrite, progress_callback):
         "format": format_id,
         "outtmpl": output_path,
         "progress_hooks": [progress_hook],
+        #"force_overwrites": overwrite,
+        "noprogress": False,
+        "quiet": True,              # Allow yt-dlp output for debugging
+        "logger": logger,
+        "verbose": False,             # Enable verbose output for debugging
+        "logtostderr": True,         # Ensure logs go to stderr
+        "errfile": log_capture,      # Capture errors
+        "outfile": log_capture,      # Capture output
+        "user_agent": "Mozilla/5.0 (compatible; MyDownloader/1.0)",
+        "concurrent_fragments": 16,   # Download up to 16 fragments in parallel
+    }
+    
+    ydl_opts2Backup = {
+        "format": format_id,
+        "outtmpl": output_path,
+        "progress_hooks": [progress_hook],
         "force_overwrites": overwrite,
         "noprogress": False,
         "quiet": False,  # Allow yt-dlp output for debugging
