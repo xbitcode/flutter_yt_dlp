@@ -38,6 +38,7 @@ def get_video_info(url):
         "quiet": True,
         "cachedir": False,
         #"format": "bestvideo+bestaudio/best",
+        "user_agent": "Mozilla/6.0 (compatible; MyDownloader/1.0)",
         "logger": logger,
     }
     try:
@@ -86,8 +87,8 @@ def download_format(url, format_id, output_path, overwrite, progress_callback):
         "logtostderr": True,         # Ensure logs go to stderr
         "errfile": log_capture,      # Capture errors
         "outfile": log_capture,      # Capture output
-        "user_agent": "Mozilla/5.0 (compatible; MyDownloader/1.0)",
-        "concurrent_fragments": 16,   # Download up to 16 fragments in parallel
+        "user_agent": "Mozilla/6.0 (compatible; MyDownloader/1.0)",
+        "concurrent_fragments": 128,   # Download up to 16 fragments in parallel
     }
     
     # ydl_opts = {
